@@ -4,6 +4,7 @@ use iron::typemap::Key;
 use r2d2::{Pool, Config, PooledConnection};
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use std::env;
+use std::io::Read;
 
 pub struct PostgresConnection {
     pool: Pool<PostgresConnectionManager>
@@ -30,8 +31,25 @@ impl BeforeMiddleware for PostgresConnection {
             .map_err(|err| IronError::new(err, Status::InternalServerError))
             .map(|conn| {req.extensions.insert::<PostgresConnection>(conn);})
     }
+}
 
-/*    fn catch(&self, _: &mut Request, _: IronError) -> IronResult<()> {
-        Ok()
-    }*/
+pub struct RequestBody;
+
+impl RequestBody {
+    pub fn new() -> RequestBody {
+        RequestBody{}
+    }
+}
+
+impl Key for RequestBody {
+    type Value = String;
+}
+
+impl BeforeMiddleware for RequestBody {
+    fn before(&self, req: &mut Request) -> IronResult<()> {
+        let mut buf = String::new();
+        req.body.read_to_string(&mut buf)
+            .map(|_| {req.extensions.insert::<RequestBody>(buf);})
+            .map_err(|err| IronError::new(err, Status::BadRequest))
+    }
 }

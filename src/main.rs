@@ -13,13 +13,20 @@ mod middleware;
 
 use iron::{Iron, Chain};
 use middleware::PostgresConnection;
+use middleware::RequestBody;
 
 fn main() {
     let r = router!(
         students_index: get "/students" => handlers::students::index,
-        students_get: get "/students/:id" => handlers::students::get);
+        students_show: get "/students/:id" => handlers::students::show,
+        students_edit: put "/students/:id" => handlers::students::edit,
+        students_new: post "/students" => handlers::students::new,
+        students_delete: delete "/students/:id" => handlers::students::delete);
     let connection_pool = PostgresConnection::new().unwrap();
+    println!("Database connection pool initialised");
     let mut c = Chain::new(r);
     c.link_before(connection_pool);
+    c.link_before(RequestBody::new());
+    println!("Server up and running");
     Iron::new(c).http("localhost:3000").unwrap();
 }
