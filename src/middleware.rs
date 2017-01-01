@@ -6,15 +6,19 @@ use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use std::env;
 use std::io::Read;
 
+use handlers::Optionable;
+
 pub struct PostgresConnection {
     pool: Pool<PostgresConnectionManager>
 }
 
 impl PostgresConnection {
     pub fn new() -> Option<Self> {
-        env::var("DATABASE_URL").ok()
-            .and_then(|db_url| PostgresConnectionManager::new(db_url, TlsMode::None).ok())
-            .and_then(|conn_mgr| Pool::new(Config::default(), conn_mgr).ok())
+        env::var("DATABASE_URL").log("Finding DB URL (PostgresConnection::new)")
+            .and_then(|db_url| PostgresConnectionManager::new(db_url, TlsMode::None)
+                .log("Initialising PostgresConnectionManager (PostgresConnection::new)"))
+            .and_then(|conn_mgr| Pool::new(Config::default(), conn_mgr)
+                .log("Initialising connection pool (PostgresConnection::new)"))
             .map(|pool| PostgresConnection{
                 pool: pool
             })
