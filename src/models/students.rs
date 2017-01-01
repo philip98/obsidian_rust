@@ -93,7 +93,7 @@ impl Student {
 impl Model for Student {
     fn find_id(id: usize, conn: &Connection, includes: &Includes) -> Option<Student> {
         if includes.contains(&Includable::Aliases) {
-            None
+            None.log("Include param not supported")
         } else {
             conn.prepare_cached(QUERY_STUDENT).log("Preparing SELECT students query (Student::find_id)")
                 .and_then(|stmt| stmt.query(&[&(id as i32)]).log("Executing SELECT students query (Student::find_id)")
@@ -152,7 +152,7 @@ impl Model for Student {
 }
 
 impl Decodable for Student {
-    fn decode<D: Decoder>(d: &mut D) -> Result<Student, D::Error> {
+    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
         d.read_struct("Student", 3, |d| {
             let name = try!(d.read_struct_field("name", 0, |d|
                 d.read_str()));

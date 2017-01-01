@@ -300,16 +300,28 @@ HTTP/1.1 204 No Content
 ```
 
 ## Books
-A book record consists of the following entries:
+A book record MAY consist of the following entries:
+```javascript
+{
+    id: Number,
+    isbn: String,
+    title: String,
+    form: String,
+    aliases: Array
+}
+```
+where `form` is a comma-separated list of forms (Jahrgangsstufen) to which the
+book in question is usually distributed, and `aliases` is an array of alias records.
+A server response will always look this way. The user usually only has to specify
+the following fields:
 ```javascript
 {
     isbn: String,
     title: String,
-    form: String
+    forms: String
 }
 ```
-where `form` is a comma-separated list of forms (Jahrgangsstufen) to which the
-book in question is usually distributed.
+the rest will be `None`'d automatically.
 
 ### Index
 #### Without `include`
@@ -342,7 +354,39 @@ Content-Type: application/json
 ```
 
 #### With `include`
-//TODO
+Request:
+```
+GET /books?include=aliases HTTP/1.1
+Accept: application/json
+```
+
+Response:
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
+```json
+[
+    {
+        "id":4,
+        "isbn":"9781278945432",
+        "title":"Quantisierung als Eigenwertproblem",
+        "form":"14",
+        "aliases":[{
+            "id":1,
+            "book_id":4,
+            "name":"quant"
+        }]
+    },
+    {
+        "id":2,
+        "isbn":"9781234567894",
+        "title":"On The Origin Of Species",
+        "form":"13",
+        "aliases":[]
+    }
+]
+```
 
 ### Show
 #### Without `include`
@@ -367,7 +411,30 @@ Content-Type: application/json
 ```
 
 #### With `include`
-//TODO
+Request:
+```
+GET /books/4?include=aliases HTTP/1.1
+Accept: application/json
+```
+
+Response:
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
+```json
+{
+    "id":4,
+    "isbn":"9781278945432",
+    "title":"Quantisierung als Eigenwertproblem",
+    "form":"14",
+    "aliases":[{
+        "id":1,
+        "book_id":4,
+        "name":"quant"
+    }]
+}
+```
 
 ### Create
 Request:
