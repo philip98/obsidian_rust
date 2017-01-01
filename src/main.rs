@@ -22,7 +22,14 @@ fn main() {
         students_show: get "/students/:id" => handlers::students::show,
         students_edit: put "/students/:id" => handlers::students::edit,
         students_new: post "/students" => handlers::students::new,
-        students_delete: delete "/students/:id" => handlers::students::delete);
+        students_delete: delete "/students/:id" => handlers::students::delete,
+
+        books_index: get "/books" => handlers::books::index,
+        books_show: get "/books/:id" => handlers::books::show,
+        books_edit: put "/books/:id" => handlers::books::edit,
+        books_new: post "/books" => handlers::books::new,
+        books_delete: delete "/books/:id" => handlers::books::delete
+    );
     let connection_pool = PostgresConnection::new().unwrap();
     println!("Database connection pool initialised");
     let mut c = Chain::new(r);

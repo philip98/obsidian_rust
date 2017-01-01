@@ -31,11 +31,13 @@ Request:
 GET /students HTTP/1.1
 Accept: application/json
 ```
+
 Response:
-```json
+```
 HTTP/1.1 200 OK
 Content-Type: application/json
-
+```
+```json
 [
     {
         "id":2,
@@ -74,10 +76,11 @@ Accept: application/json
 `baseSets.book` may alternatively be called `baseSets`).
 
 Response:
-```json
+```
 HTTP/1.1 200 OK
 Content-Type: application/json
-
+```
+```json
 [
     {
         "id":2,
@@ -128,9 +131,12 @@ Request:
 GET /students/5 HTTP/1.1
 Accept: application/json
 ```
+
 Response:
-```json
+```
 HTTP/1.1 200 OK
+```
+```json
 {
     "id":5,
     "name":"Hannah Lange",
@@ -149,6 +155,10 @@ Accept: application/json
 ```
 
 Response:
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
 ```json
 {
     "id":5,
@@ -171,10 +181,11 @@ Response:
 ### Create
 #### Single student
 Request:
-```json
+```
 POST /students HTTP/1.1
 Content-Type: application/json
-
+```
+```json
 {
     "name":"Luz Karkoschka",
     "class_letter":"",
@@ -185,10 +196,11 @@ Content-Type: application/json
 `lent_books` and `base_sets`. Order matters!)
 
 Response:
-```json
+```
 HTTP/1.1 201 Created
 Content-Type: application/json
-
+```
+```json
 {
     "id":6,
     "name":"Luz Karkoschka",
@@ -201,10 +213,11 @@ Content-Type: application/json
 
 #### Multiple students
 Request:
-```json
+```
 POST /students HTTP/1.1
 Content-Type: application/json
-
+```
+```json
 [
     {
         "name":"Jael Veen",
@@ -220,10 +233,11 @@ Content-Type: application/json
 ```
 
 Response:
-```json
+```
 HTTP/1.1 201 Created
 Content-Type: application/json
-
+```
+```json
 [
     {
         "id":7,
@@ -246,10 +260,11 @@ Content-Type: application/json
 
 ### Edit
 Request:
-```json
+```
 PUT /students/6 HTTP/1.1
 Content-Type: application/json
-
+```
+```json
 {
     "name":"Luz Karkoschka",
     "class_letter":"b",
@@ -258,10 +273,11 @@ Content-Type: application/json
 ```
 
 Response:
-```json
+```
 HTTP/1.1 200 OK
 Content-Type: application/json
-
+```
+```json
 {
     "id":6,
     "name":"Luz Karkoschka",
@@ -276,6 +292,143 @@ Content-Type: application/json
 Request:
 ```
 DELETE /students/8 HTTP/1.1
+```
+
+Response:
+```
+HTTP/1.1 204 No Content
+```
+
+## Books
+A book record consists of the following entries:
+```javascript
+{
+    isbn: String,
+    title: String,
+    form: String
+}
+```
+where `form` is a comma-separated list of forms (Jahrgangsstufen) to which the
+book in question is usually distributed.
+
+### Index
+#### Without `include`
+Request:
+```
+GET /books HTTP/1.1
+Accept: application/json
+```
+
+Response:
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
+```json
+[
+    {
+        "id":1,
+        "isbn":"3728374839234",
+        "title":"isufghihdmstgkufh",
+        "form":"10"
+    },
+    {
+        "id":2,
+        "isbn":"9781234567894",
+        "title":"On The Origin Of Species",
+        "form":"12"
+    }
+]
+```
+
+#### With `include`
+//TODO
+
+### Show
+#### Without `include`
+Request:
+```
+GET /books/1 HTTP/1.1
+Accept: application/json
+```
+
+Response:
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
+```json
+{
+    "id":1,
+    "isbn":"3728374839234",
+    "title":"isufghihdmstgkufh",
+    "form":"10"
+}
+```
+
+#### With `include`
+//TODO
+
+### Create
+Request:
+```
+POST /books HTTP/1.1
+Content-Type: application/json
+```
+```json
+{
+    "isbn":"9781278945432",
+    "title":"Quantisierung als Eigenwertproblem",
+    "form":"14"
+}
+```
+
+Response:
+```
+HTTP/1.1 201 Created
+Content-Type: application/json
+```
+```json
+{
+    "id":4,
+    "isbn":"9781278945432",
+    "title":"Quantisierung als Eigenwertproblem",
+    "form":"14"
+}
+```
+
+### Edit
+Request:
+```
+PUT /books/2 HTTP/1.1
+Content-Type: application/json
+```
+```json
+{
+    "isbn":"9781234567894",
+    "title": "On The Origin Of Species",
+    "form": "13"
+}
+```
+
+Response:
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
+```json
+{
+    "id":2,
+    "isbn":"9781234567894",
+    "title":"On The Origin Of Species",
+    "form":"13"
+}
+```
+
+### Delete
+Request:
+```
+DELETE /books/1 HTTP/1.1
 ```
 
 Response:

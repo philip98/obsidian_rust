@@ -1,4 +1,5 @@
 pub mod students;
+pub mod books;
 
 use chrono::UTC;
 use iron::Request;
