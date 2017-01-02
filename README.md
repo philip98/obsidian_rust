@@ -629,3 +629,191 @@ Response:
 ```
 HTTP/1.1 204 No Content
 ```
+
+## Teachers
+### Index
+#### Without `include`
+Request:
+```
+GET /teachers HTTP/1.1
+Accept: application/json
+```
+
+Response:
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
+```json
+[
+    {
+        "id":1,
+        "name":"Charles Darwin",
+        "lent_books":null
+    },
+    {
+        "id":2,
+        "name":"Erwin Schroedinger",
+        "lent_books":null
+    }
+]
+```
+
+#### With `include`
+Request:
+```
+GET /teachers?include=lendings.book HTTP/1.1
+Accept: application/json
+```
+
+Response:
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
+```json
+[
+    {
+        "id":1,
+        "name":"Charles Darwin",
+        "lent_books":[[
+            "2017-01-02T13:04:59.241354+00:00",
+            {
+                "id":2,
+                "isbn":"9781234567894",
+                "title":"On The Origin Of Species",
+                "form":"13",
+                "aliases":null
+            }
+        ]]
+    },
+    {
+        "id":2,
+        "name":"Erwin Schroedinger",
+        "lent_books":[]
+    }
+]
+```
+
+### Show
+#### Without `include`
+Request:
+```
+GET /teachers/1 HTTP/1.1
+Accept: application/json
+```
+
+Response:
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
+```json
+{
+    "id":1,
+    "name":"Charles Darwin",
+    "lent_books":null
+}
+```
+
+#### With `include`
+Request:
+```
+GET /teachers/1?include=lendings.book HTTP/1.1
+Accept: application/json
+```
+
+Response:
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
+```json
+{
+    "id":1,
+    "name":"Charles Darwin",
+    "lent_books":[
+        [
+            "2017-01-02T13:04:59.241354+00:00",
+            {
+                "id":2,
+                "isbn":"9781234567894",
+                "title":"On The Origin Of Species",
+                "form":"13",
+                "aliases":null
+            }
+        ],
+        [
+            "2017-01-02T13:14:23.142351+00:00",
+            {
+                "id":4,
+                "isbn":"9781278945432",
+                "title":"Quantisierung als Eigenwertproblem",
+                "form":"14",
+                "aliases":null
+            }
+        ]
+    ]
+}
+```
+
+### Create
+Request:
+```
+POST /teachers HTTP/1.1
+Content-Type: application/json
+```
+```json
+{
+    "name":"Max Planck"
+}
+```
+
+Response:
+```
+HTTP/1.1 201 Created
+Content-Type: application/json
+```
+```json
+{
+    "id":3,
+    "name":"Max Planck",
+    "lent_books":null
+}
+```
+
+### Edit
+Request:
+```
+PUT /teachers/3 HTTP/1.1
+Content-Type: application/json
+```
+```json
+{
+    "name":"Werner Heisenberg"
+}
+```
+
+Response:
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
+```json
+{
+    "id":3,
+    "name":"Werner Heisenberg",
+    "lent_books":null
+}
+```
+
+### Delete
+Request:
+```
+DELETE /teachers/3 HTTP/1.1
+```
+
+Response:
+```
+HTTP/1.1 204 No Content
+```

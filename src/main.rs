@@ -34,7 +34,13 @@ fn main() {
         aliases_show: get "/aliases/:id" => handlers::aliases::show,
         aliases_edit: put "/aliases/:id" => handlers::aliases::edit,
         aliases_new: post "/aliases" => handlers::aliases::new,
-        aliases_delete: delete "/aliases/:id" => handlers::aliases::delete
+        aliases_delete: delete "/aliases/:id" => handlers::aliases::delete,
+
+        teachers_index: get "/teachers" => handlers::teachers::index,
+        teachers_show: get "/teachers/:id" => handlers::teachers::show,
+        teachers_edit: put "/teachers/:id" => handlers::teachers::edit,
+        teachers_new: post "/teachers" => handlers::teachers::new,
+        teachers_delete: delete "/teachers/:id" => handlers::teachers::delete
     );
     let connection_pool = PostgresConnection::new().unwrap();
     println!("Database connection pool initialised");

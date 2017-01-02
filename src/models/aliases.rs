@@ -39,7 +39,7 @@ impl Alias {
 impl Model for Alias {
     fn find_id(id: usize, conn: &Connection, includes: &Includes) -> Option<Self> {
         if !includes.is_empty() {
-            None.log("Include param not supported")
+            None.log(&format!("Include params {:?} not supported", includes))
         } else {
             conn.prepare_cached(QUERY_ALIAS).log("Preparing SELECT aliases query (Alias::find_id)")
                 .and_then(|stmt| stmt.query(&[&(id as i32)]).log("Executing SELECT aliases query (Alias::find_id)")
@@ -55,6 +55,7 @@ impl Model for Alias {
 
     fn find_all(conn: &Connection, includes: &Includes) -> Vec<Self> {
         if !includes.is_empty() {
+            None::<Alias>.log(&format!("Include params {:?} not supported", includes));
             vec![]
         } else {
             conn.prepare_cached(QUERY_ALIASES).log("Preparing SELECT aliases query (Alias::find_all)")

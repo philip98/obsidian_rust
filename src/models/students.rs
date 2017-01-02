@@ -93,7 +93,7 @@ impl Student {
 impl Model for Student {
     fn find_id(id: usize, conn: &Connection, includes: &Includes) -> Option<Student> {
         if includes.contains(&Includable::Aliases) {
-            None.log("Include param not supported")
+            None.log(&format!("Include params {:?} not supported", includes))
         } else {
             conn.prepare_cached(QUERY_STUDENT).log("Preparing SELECT students query (Student::find_id)")
                 .and_then(|stmt| stmt.query(&[&(id as i32)]).log("Executing SELECT students query (Student::find_id)")
@@ -109,6 +109,7 @@ impl Model for Student {
 
     fn find_all(conn: &Connection, includes: &Includes) -> Vec<Student> {
         if includes.contains(&Includable::Aliases) {
+            None::<Student>.log(&format!("Include params {:?} not supported", includes));
             vec![]
         } else {
             conn.prepare_cached(QUERY_STUDENTS).log("Preparing SELECT query (Student::find_all)")

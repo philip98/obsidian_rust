@@ -1,6 +1,7 @@
 pub mod students;
 pub mod books;
 pub mod aliases;
+pub mod teachers;
 
 use postgres::Connection;
 use rustc_serialize::{json, Encodable, Decodable};

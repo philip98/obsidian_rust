@@ -1,6 +1,7 @@
 pub mod students;
 pub mod books;
 pub mod aliases;
+pub mod teachers;
 
 use chrono::UTC;
 use iron::Request;

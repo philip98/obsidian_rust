@@ -63,7 +63,7 @@ impl Book {
 impl Model for Book {
     fn find_id(id: usize, conn: &Connection, includes: &Includes) -> Option<Self> {
         if includes.contains(&Includable::BaseSetBooks) || includes.contains(&Includable::LentBooks) {
-            None.log("Include param not supported")
+            None.log(&format!("Include params {:?} not supported", includes))
         } else {
             conn.prepare_cached(QUERY_BOOK).log("Preparing SELECT books query (Book::find_id)")
                 .and_then(|stmt| stmt.query(&[&(id as i32)]).log("Executing SELECT books query (Book::find_id)")
@@ -79,6 +79,7 @@ impl Model for Book {
 
     fn find_all(conn: &Connection, includes: &Includes) -> Vec<Self> {
         if includes.contains(&Includable::BaseSetBooks) || includes.contains(&Includable::LentBooks) {
+            None::<Book>.log(&format!("Include params {:?} not supported", includes));
             vec![]
         } else {
             conn.prepare_cached(QUERY_BOOKS).log("Preparing SELECT books query (Book::find_all)")
