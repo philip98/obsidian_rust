@@ -1,5 +1,6 @@
 pub mod students;
 pub mod books;
+pub mod aliases;
 
 use chrono::UTC;
 use iron::Request;
@@ -31,9 +32,9 @@ impl<T,E> Optionable<T> for Result<T, E> where E: Debug {
             },
             Err(e) => {
                 if let Some(ctxt) = ctxt {
-                    println!("[{}] {}: {:?}", UTC::now(), ctxt, e);
+                    println!("[{}] {}: {:?}", UTC::now().format("%FT%T%:z"), ctxt, e);
                 } else {
-                    println!("[{}] Error: {:?}", UTC::now(), e);
+                    println!("[{}] Error: {:?}", UTC::now().format("%FT%T%:z"), e);
                 }
                 None
             }
@@ -46,7 +47,7 @@ impl<T> Optionable<T> for Option<T> {
         match self {
             None => {
                 if let Some(ctxt) = ctxt {
-                    println!("[{}] {}", UTC::now(), ctxt);
+                    println!("[{}] {}", UTC::now().format("%FT%T%:z"), ctxt);
                 }
                 None
             },

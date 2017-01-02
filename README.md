@@ -3,27 +3,29 @@
 A student record MAY consist of the following fields:
 ```javascript
 {
-    "id": Number,
-    "name": String,
-    "class_letter": String,
-    "graduation_year": Number,
-    "lent_books": Array,
-    "base_sets": Array
+    id: Number,
+    name: String,
+    class_letter: String,
+    graduation_year: Number,
+    lent_books: Array,
+    base_sets: Array
 }
 ```
 which will always be included in a response. It MUST consist of the
 following fields:
 ```javascript
 {
-    "name": String,
-    "class_letter": String,
-    "graduation_year": Number
+    name: String,
+    class_letter: String,
+    graduation_year: Number
 }
 ```
 `lent_books` and `base_sets` will only be non-null in a response, if they are
 specifically asked for (`include=…`). Both fields' items are arrays whose first
-item is the date when the book was lent and whose second item is the respective
-[Book](#books) record.
+item is the date when the book was lent (always in UTC-time) and whose
+second item is the respective [Book](#books) record.
+
+Note that a client-supplied `id` will always be ignored (aside from the route)
 ### Index
 #### Without `include`
 Request:
@@ -323,6 +325,8 @@ the following fields:
 ```
 the rest will be `None`'d automatically.
 
+Note that a client-supplied `id` will always be ignored (aside from the route).
+
 ### Index
 #### Without `include`
 Request:
@@ -496,6 +500,129 @@ Content-Type: application/json
 Request:
 ```
 DELETE /books/1 HTTP/1.1
+```
+
+Response:
+```
+HTTP/1.1 204 No Content
+```
+
+## Aliases
+An alias record consists of the following fields:
+```javascript
+{
+    id: Number,
+    book_id: Number,
+    name: String
+}
+```
+
+where `id` will always be ignored when specified by the client.
+
+### Index
+Request:
+```
+GET /aliases HTTP/1.1
+Accept: application/json
+```
+
+Response:
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
+```json
+[
+    {
+        "id":1,
+        "book_id":4,
+        "name":"quant"
+    },
+    {
+        "id":2,
+        "book_id":4,
+        "name":"schroed"
+    }
+]
+```
+
+### Show
+Admittedly --- this route is pretty useless.
+Request:
+```
+GET /aliases/1 HTTP/1.1
+Accept: application/json
+```
+
+Response:
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
+```json
+{
+    "id":1,
+    "book_id":4,
+    "name":"quant"
+}
+```
+
+### Create
+Request:
+```
+POST /aliases HTTP/1.1
+Content-Type: application/json
+```
+```json
+{
+    "book_id":2,
+    "name":"spec"
+}
+```
+
+Response:
+```
+HTTP/1.1 201 Created
+Content-Type: application/json
+```
+```json
+{
+    "id":3,
+    "book_id":2,
+    "name":"spec"
+}
+```
+
+### Edit
+Request:
+```
+PUT /aliases/3 HTTP/1.1
+Content-Type: application/json
+```
+```json
+{
+    "book_id":2,
+    "name":"orig"
+}
+```
+
+Response:
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
+```json
+{
+    "id":3,
+    "book_id":2,
+    "name":"orig"
+}
+```
+
+### Delete
+Request:
+```
+DELETE /aliases/2 HTTP/1.1
 ```
 
 Response:

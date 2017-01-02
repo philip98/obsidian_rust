@@ -16,7 +16,7 @@ pub fn index(req: &mut Request) -> IronResult<Response> {
             .log("PostgresConnection extension could not be found (students::index)")
             .and_then(|conn| json::encode(&Student::find_all(conn, &includes))
                 .log("Serialising vector of Students (students::index)")) {
-        println!("[{}] Successfully handled students::index request (include={:?})", UTC::now(), &includes);
+        println!("[{}] Successfully handled students::index request (include={:?})", UTC::now().format("%FT%T%:z"), &includes);
         Ok(Response::with((Status::Ok, ser, Header(ContentType::json()))))
     } else {
         Ok(Response::with(Status::NotFound))
@@ -30,7 +30,7 @@ pub fn show(req: &mut Request) -> IronResult<Response> {
                 .log("PostgresConnection extension could not be found (students::show)")
                 .and_then(|conn| Student::find_id(id, conn, &includes)))
             .and_then(|student| student.to_str()) {
-        println!("[{}] Successfully handled students::show request (include={:?})", UTC::now(), &includes);
+        println!("[{}] Successfully handled students::show request (include={:?})", UTC::now().format("%FT%T%:z"), &includes);
         Ok(Response::with((Status::Ok, ser, Header(ContentType::json()))))
     } else {
         Ok(Response::with(Status::NotFound))
@@ -45,7 +45,7 @@ pub fn edit(req: &mut Request) -> IronResult<Response> {
                 .log("PostgresConnection extension could not be found (students::edit)")
                 .and_then(|conn| student.save(Some(id), conn))))
         .and_then(|student| student.to_str()) {
-        println!("[{}] Successfully handled students::edit request", UTC::now());
+        println!("[{}] Successfully handled students::edit request", UTC::now().format("%FT%T%:z"));
         Ok(Response::with((Status::Ok, ser, Header(ContentType::json()))))
     } else {
         Ok(Response::with(Status::NotFound))
@@ -59,7 +59,7 @@ pub fn new(req: &mut Request) -> IronResult<Response> {
             .log("PostgresConnection extension could not be found (students::new)")
             .and_then(|conn| student.save(None, conn)))
         .and_then(|student| student.to_str()) {
-        println!("[{}] Successfully handled students::new request (single student)", UTC::now());
+        println!("[{}] Successfully handled students::new request (single student)", UTC::now().format("%FT%T%:z"));
         Ok(Response::with((Status::Created, ser, Header(ContentType::json()))))
     } else if let Some(ser) = check_content_type(req)
         .and_then(|_| Student::parse_many(req))
@@ -70,7 +70,7 @@ pub fn new(req: &mut Request) -> IronResult<Response> {
                 .collect::<Vec<Student>>()))
         .and_then(|students| json::encode(&students)
             .log("Serialising vector of Students (students::new)")) {
-        println!("[{}] Successfully handled students::new request (multiple students)", UTC::now());
+        println!("[{}] Successfully handled students::new request (multiple students)", UTC::now().format("%FT%T%:z"));
         Ok(Response::with((Status::Created, ser, Header(ContentType::json()))))
     } else {
         Ok(Response::with(Status::BadRequest))
@@ -82,7 +82,7 @@ pub fn delete(req: &mut Request) -> IronResult<Response> {
         .and_then(|id| req.extensions.get::<PostgresConnection>()
             .log("PostgresConnection extension could not be found (students::delete)")
             .and_then(|conn| Student::delete(id, conn))).is_some() {
-        println!("[{}] Successfully handled students::delete request", UTC::now());
+        println!("[{}] Successfully handled students::delete request", UTC::now().format("%FT%T%:z"));
         Ok(Response::with(Status::NoContent))
     } else {
         Ok(Response::with(Status::NotFound))

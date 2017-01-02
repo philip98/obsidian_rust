@@ -16,7 +16,7 @@ pub fn index(req: &mut Request) -> IronResult<Response> {
         .log("PostgresConnection extension could not be found (books::index)")
         .and_then(|conn| json::encode(&Book::find_all(conn, &includes))
             .log("Serialising vector of Books (books::index)")) {
-        println!("[{}] Successfully handled books::index (includes={:?})", UTC::now(), &includes);
+        println!("[{}] Successfully handled books::index (includes={:?})", UTC::now().format("%FT%T%:z"), &includes);
         Ok(Response::with((Status::Ok, ser, Header(ContentType::json()))))
     } else {
         Ok(Response::with(Status::NotFound))
@@ -30,7 +30,7 @@ pub fn show(req: &mut Request) -> IronResult<Response> {
             .log("PostgresConnection extension could not be found (books::show)")
             .and_then(|conn| Book::find_id(id, conn, &includes)))
         .and_then(|book| book.to_str()) {
-        println!("[{}] Successfully handled books::show (includes={:?})", UTC::now(), &includes);
+        println!("[{}] Successfully handled books::show (includes={:?})", UTC::now().format("%FT%T%:z"), &includes);
         Ok(Response::with((Status::Ok, ser, Header(ContentType::json()))))
     } else {
         Ok(Response::with(Status::NotFound))
@@ -45,7 +45,7 @@ pub fn edit(req: &mut Request) -> IronResult<Response> {
                 .log("PostgresConnection extension could not be found (books::edit)")
                 .and_then(|conn| book.save(Some(id), conn))))
         .and_then(|book| book.to_str()) {
-        println!("[{}] Successfully handled books::edit", UTC::now());
+        println!("[{}] Successfully handled books::edit", UTC::now().format("%FT%T%:z"));
         Ok(Response::with((Status::Ok, ser, Header(ContentType::json()))))
     } else {
         Ok(Response::with(Status::NotFound))
@@ -59,7 +59,7 @@ pub fn new(req: &mut Request) -> IronResult<Response> {
             .log("PostgresConnection extension could not be found (books::new)")
             .and_then(|conn| book.save(None, conn)))
         .and_then(|book| book.to_str()) {
-        println!("[{}] Successfully handled books::new", UTC::now());
+        println!("[{}] Successfully handled books::new", UTC::now().format("%FT%T%:z"));
         Ok(Response::with((Status::Created, ser, Header(ContentType::json()))))
     } else {
         Ok(Response::with(Status::BadRequest))
@@ -71,7 +71,7 @@ pub fn delete(req: &mut Request) -> IronResult<Response> {
         .and_then(|id| req.extensions.get::<PostgresConnection>()
             .log("PostgresConnection extension could not be found (books::delete)")
             .and_then(|conn| Book::delete(id, conn))).is_some() {
-        println!("[{}] Successfully handled books::delete", UTC::now());
+        println!("[{}] Successfully handled books::delete", UTC::now().format("%FT%T%:z"));
         Ok(Response::with(Status::NoContent))
     } else {
         Ok(Response::with(Status::NotFound))
