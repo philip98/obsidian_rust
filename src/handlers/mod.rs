@@ -2,6 +2,8 @@ pub mod students;
 pub mod books;
 pub mod aliases;
 pub mod teachers;
+pub mod base_sets;
+pub mod lendings;
 
 use chrono::UTC;
 use iron::Request;

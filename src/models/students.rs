@@ -9,13 +9,18 @@ use models::books::Book;
 use handlers::Optionable;
 use middleware::RequestBody;
 
-type LentBook = (String, Book);
+#[derive(RustcEncodable)]
+struct LentBook {
+    id: usize,
+    created_at: String,
+    book: Book,
+}
 
 const QUERY_STUDENT: &'static str = "SELECT id, name, class_letter, graduation_year FROM students WHERE id = $1";
 const QUERY_STUDENTS: &'static str = "SELECT id, name, class_letter, graduation_year FROM students";
-const QUERY_LENDINGS: &'static str = "SELECT title, form, isbn, lendings.created_at, books.id FROM lendings, books
+const QUERY_LENDINGS: &'static str = "SELECT title, form, isbn, lendings.created_at, books.id, lendings.id FROM lendings, books
     WHERE lendings.person_id=$1 AND lendings.person_type='student' AND lendings.book_id = books.id";
-const QUERY_BASE_SETS: &'static str = "SELECT title, form, isbn, base_sets.created_at, books.id FROM base_sets, books
+const QUERY_BASE_SETS: &'static str = "SELECT title, form, isbn, base_sets.created_at, books.id, base_sets.id FROM base_sets, books
     WHERE base_sets.student_id=$1 AND base_sets.book_id = books.id";
 
 const INSERT_STUDENT: &'static str = "INSERT INTO students (name, graduation_year, class_letter)
@@ -45,11 +50,13 @@ impl Student {
             .and_then(|stmt| stmt.query(&[&(student_id as i32)]).log("Executing SELECT base_sets query (find_base_sets)")
                 .map(|rows| rows
                     .iter()
-                    .map(|row| (
-                        row.get::<usize, DateTime<UTC>>(3).to_rfc3339(),
-                        Book::new(Some(row.get::<usize, i32>(4) as usize), row.get::<usize, String>(2),
+                    .map(|row| LentBook {
+                        id: row.get::<usize, i32>(5) as usize,
+                        created_at: row.get::<usize, DateTime<UTC>>(3).to_rfc3339(),
+                        book: Book::new(Some(row.get::<usize, i32>(4) as usize), row.get::<usize, String>(2),
                             row.get::<usize, String>(0), row.get::<usize, String>(1))
-                    )).collect()))
+                    })
+                    .collect()))
     }
 
     fn find_lendings(student_id: usize, conn: &Connection) -> Option<Vec<LentBook>> {
@@ -57,12 +64,12 @@ impl Student {
             .and_then(|stmt| stmt.query(&[&(student_id as i32)]).log("Executing SELECT lendings query (find_lendings)")
                 .map(|rows| rows
                     .iter()
-                    .map(|row| (
-                        row.get::<usize, DateTime<UTC>>(3).to_rfc3339(),
-                        Book::new(Some(row.get::<usize, i32>(4) as usize), row.get::<usize, String>(2),
+                    .map(|row| LentBook {
+                        id: row.get::<usize, i32>(5) as usize,
+                        created_at: row.get::<usize, DateTime<UTC>>(3).to_rfc3339(),
+                        book: Book::new(Some(row.get::<usize, i32>(4) as usize), row.get::<usize, String>(2),
                             row.get::<usize, String>(0), row.get::<usize, String>(1))
-                        )
-                    )
+                    })
                     .collect()))
     }
 

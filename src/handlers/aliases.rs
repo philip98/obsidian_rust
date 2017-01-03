@@ -22,19 +22,6 @@ pub fn index(req: &mut Request) -> IronResult<Response> {
     }
 }
 
-pub fn show(req: &mut Request) -> IronResult<Response> {
-    if let Some(ser) = extract_id(req)
-        .and_then(|id| req.extensions.get::<PostgresConnection>()
-            .log("PostgresConnection extension could not be found (aliases::show)")
-            .and_then(|conn| Alias::find_id(id, conn, &get_includes(req))))
-        .and_then(|alias| alias.to_str()) {
-        println!("[{}] Successfully handled aliases::show", UTC::now().format("%FT%T%:z"));
-        Ok(Response::with((Status::Ok, ser, Header(ContentType::json()))))
-    } else {
-        Ok(Response::with(Status::NotFound))
-    }
-}
-
 pub fn edit(req: &mut Request) -> IronResult<Response> {
     if let Some(ser) = check_content_type(req)
         .and_then(|_| extract_id(req))

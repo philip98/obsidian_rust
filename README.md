@@ -21,9 +21,17 @@ following fields:
 }
 ```
 `lent_books` and `base_sets` will only be non-null in a response, if they are
-specifically asked for (`include=…`). Both fields' items are arrays whose first
-item is the date when the book was lent (always in UTC-time) and whose
-second item is the respective [Book](#books) record.
+specifically asked for (`include=…`). Both fields are arrays consisting of entries of
+the following format:
+```javascript
+{
+    id: Number,
+    created_at: String,
+    book: Object
+}
+```
+where `created_at` is the RFC3339 representation of the date the book was lent on,
+and `book` is a [Book](#books) record.
 
 Note that a client-supplied `id` will always be ignored (aside from the route)
 ### Index
@@ -90,14 +98,16 @@ Content-Type: application/json
         "class_letter":"a",
         "graduation_year":2016,
         "lent_books":[],
-        "base_sets":[[
-            "2017-01-01T09:55:37.123791+00:00", {
+        "base_sets":[{
+            "id":1,
+            "created_at":"2017-01-01T09:55:37.123791+00:00",
+            "book":{
                 "id":1,
                 "isbn":"3728374839234",
                 "title":"isufghihdmstgkufh",
                 "form":"10"
             }
-        ]]
+        }]
     },
     {
         "id":3,
@@ -112,15 +122,16 @@ Content-Type: application/json
         "name":"Hannah Lange",
         "class_letter":"",
         "graduation_year":2015,
-        "lent_books":[[
-            "2017-01-01T09:56:09.479132+00:00",
-            {
+        "lent_books":[{
+            "id":1,
+            "created_at":"2017-01-01T09:56:09.479132+00:00",
+            "book":{
                 "id":1,
                 "isbn":"3728374839234",
                 "title":"isufghihdmstgkufh",
                 "form":"10"
             }
-        ]],
+        }],
         "base_sets":[]
     }
 ]
@@ -167,15 +178,16 @@ Content-Type: application/json
     "name":"Hannah Lange",
     "class_letter":"",
     "graduation_year":2015,
-    "lent_books":[[
-        "2017-01-01T09:56:09.479132+00:00",
-        {
+    "lent_books":[{
+        "id":1,
+        "created_at":"2017-01-01T09:56:09.479132+00:00",
+        "book":{
             "id":1,
             "isbn":"3728374839234",
             "title":"isufghihdmstgkufh",
             "form":"10"
             }
-        ]],
+        }],
     "base_sets":[]
 }
 ```
@@ -546,27 +558,6 @@ Content-Type: application/json
 ]
 ```
 
-### Show
-Admittedly --- this route is pretty useless.
-Request:
-```
-GET /aliases/1 HTTP/1.1
-Accept: application/json
-```
-
-Response:
-```
-HTTP/1.1 200 OK
-Content-Type: application/json
-```
-```json
-{
-    "id":1,
-    "book_id":4,
-    "name":"quant"
-}
-```
-
 ### Create
 Request:
 ```
@@ -811,6 +802,195 @@ Content-Type: application/json
 Request:
 ```
 DELETE /teachers/3 HTTP/1.1
+```
+
+Response:
+```
+HTTP/1.1 204 No Content
+```
+
+## Base Sets
+### Create
+#### Single Base Set
+Request:
+```
+POST /base_sets HTTP/1.1
+Content-Type: application/json`
+```
+```json
+{
+    "student_id":7,
+    "book_id":4
+}
+```
+
+Response:
+```
+HTTP/1.1 201 Created
+Content-Type: application/json
+```
+```json
+{
+    "id":3,
+    "student_id":7,
+    "book_id":4,
+    "created_at":"2017-01-03T09:45:21.661754557+00:00"
+}
+```
+#### Multiple Base Sets
+Request:
+```
+POST /base_sets HTTP/1.1
+Content-Type: application/json
+```
+```json
+[
+    {
+        "student_id":3,
+        "book_id":4
+    },
+    {
+        "student_id":3,
+        "book_id":2
+    }
+]
+```
+
+Response:
+```
+HTTP/1.1 201 Created
+Content-Type: application/json
+```
+```json
+[
+    {
+        "id":4,
+        "student_id":3,
+        "book_id":4,
+        "created_at":"2017-01-03T13:45:12.158573031+00:00"
+    },
+    {
+        "id":5,
+        "student_id":3,
+        "book_id":2,
+        "created_at":"2017-01-03T13:45:12.158595519+00:00"
+    }
+]
+```
+
+### Delete
+Request:
+```
+DELETE /base_sets/3 HTTP/1.1
+```
+
+Response:
+```
+HTTP/1.1 204 No Content
+```
+
+## Lendings
+Each lending record must contain the following entries:
+```javascript
+{
+    person_type: String,
+    person_id: Number,
+    book_id: Number
+}
+```
+where `person_type` is either `student` or `teacher`. A server response will always
+look as follows:
+```javascript
+{
+    id: Number,
+    created_at: String,
+    person_type: String,
+    person_id: Number,
+    book_id: Number
+}
+```
+where `created_at` is the RFC3339 representation of the UTC-time, the record was
+created.
+
+### Create
+#### Single Lending
+Request:
+```
+POST /lendings HTTP/1.1
+Content-Type: application/json
+```
+```json
+{
+    "person_type":"student",
+    "person_id":6,
+    "book_id":4
+}
+```
+
+Response:
+```
+HTTP/1.1 201 Created
+Content-Type: application/json
+```
+```json
+{
+    "id":4,
+    "created_at":"2017-01-03T11:05:11.396771676+00:00",
+    "person_type":"student",
+    "person_id":6,
+    "book_id":4
+}
+```
+
+#### Multiple Lendings
+Request:
+```
+POST /lendings HTTP/1.1
+Content-Type: application/json
+```
+```json
+[
+    {
+        "person_type":"student",
+        "person_id":5,
+        "book_id":4
+    },
+    {
+        "person_type":"teacher",
+        "person_id":2,
+        "book_id":4
+    }
+]
+```
+
+Response:
+```
+HTTP/1.1 201 Created
+Content-Type: application/json
+```
+```json
+[
+    {
+        "id":5,
+        "created_at":"2017-01-03T13:50:34.281133141+00:00",
+        "person_type":"student",
+        "person_id":5,
+        "book_id":4
+    },
+    {
+        "id":6,
+        "created_at":"2017-01-03T13:50:34.281178885+00:00",
+        "person_type":"teacher",
+        "person_id":2,
+        "book_id":4
+    }
+]
+```
+
+### Delete
+Request:
+```
+DELETE /lendings/4 HTTP/1.1
 ```
 
 Response:
