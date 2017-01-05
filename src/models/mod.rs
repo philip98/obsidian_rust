@@ -4,6 +4,8 @@ pub mod aliases;
 pub mod teachers;
 pub mod base_sets;
 pub mod lendings;
+pub mod schools;
+pub mod sessions;
 
 use postgres::Connection;
 use rustc_serialize::{json, Encodable, Decodable};

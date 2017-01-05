@@ -27,9 +27,21 @@ BEGIN
 END;
 $check_lendings$ LANGUAGE plpgsql;
 
+CREATE FUNCTION check_auth_tokens() RETURNS trigger AS $auth_tokens$
+BEGIN
+    SELECT * FROM authentication_tokens WHERE id=NEW.id;
+    WHILE FOUND LOOP
+        NEW.id := NEW.id + 1;
+        SELECT * FROM authentication_tokens WHERE id=NEW.id;
+    END LOOP;
+END
+$auth_tokens$ LANGUAGE plpgsql;
+
 CREATE TRIGGER lendings_ins BEFORE INSERT OR UPDATE ON lendings FOR EACH ROW
 EXECUTE PROCEDURE check_person_id();
 CREATE TRIGGER del_student_lendings AFTER DELETE ON students FOR EACH ROW
 EXECUTE PROCEDURE delete_lendings();
 CREATE TRIGGER del_teacher_lendings AFTER DELETE ON teachers FOR EACH ROW
 EXECUTE PROCEDURE delete_lendings();
+CREATE TRIGGER ins_token BEFORE INSERT ON authentication_tokens FOR EACH ROW
+EXECUTE PROCEDURE check_auth_tokens();

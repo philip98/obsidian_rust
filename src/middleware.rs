@@ -1,12 +1,16 @@
 use iron::{BeforeMiddleware, IronResult, IronError, Request};
+use iron::headers::{Authorization, Basic};
 use iron::status::Status;
 use iron::typemap::Key;
 use r2d2::{Pool, Config, PooledConnection};
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use std::env;
+use std::error::Error;
+use std::fmt::{Display, Formatter, Error as FError};
 use std::io::Read;
 
 use handlers::Optionable;
+use models::sessions::AuthToken;
 
 pub struct PostgresConnection {
     pool: Pool<PostgresConnectionManager>
@@ -55,5 +59,46 @@ impl BeforeMiddleware for RequestBody {
         req.body.read_to_string(&mut buf)
             .map(|_| {req.extensions.insert::<RequestBody>(buf);})
             .map_err(|err| IronError::new(err, Status::BadRequest))
+    }
+}
+
+#[derive(Debug)]
+pub struct SchoolID;
+
+impl SchoolID {
+    pub fn new() -> SchoolID {
+        SchoolID{}
+    }
+}
+
+impl Key for SchoolID {
+    type Value = usize;
+}
+
+impl BeforeMiddleware for SchoolID {
+    fn before(&self, req: &mut Request) -> IronResult<()> {
+        req.headers.get::<Authorization<Basic>>()
+            .and_then(|header| AuthToken::from_header(header))
+            .and_then(|token| req.extensions.get::<PostgresConnection>()
+                .log("PostgresConnection not found (SchoolID::before)")
+                .and_then(|conn| token.verify(conn)))
+        .map(|school_id| {req.extensions.insert::<Self>(school_id); Ok(())})
+        .unwrap_or(Err(IronError::new(SchoolID{}, Status::Unauthorized)))
+    }
+}
+
+impl Error for SchoolID {
+    fn description(&self) -> &'static str {
+        "Unauthorized"
+    }
+
+    fn cause(&self) -> Option<&Error> {
+        None
+    }
+}
+
+impl Display for SchoolID {
+    fn fmt(&self, _: &mut Formatter) -> Result<(), FError> {
+        Ok(())
     }
 }

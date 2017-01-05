@@ -4,18 +4,21 @@ pub mod aliases;
 pub mod teachers;
 pub mod base_sets;
 pub mod lendings;
+pub mod schools;
+pub mod sessions;
 
 use chrono::UTC;
-use iron::Request;
+use iron::{Chain, Handler, Request};
 use iron::headers::ContentType;
 use iron::mime::{TopLevel, SubLevel, Mime};
+use postgres::Connection;
 use router::Router;
 use std::str::FromStr;
 use std::fmt::Debug;
 use std::collections::HashSet;
 
 use models::{Model, Includable, Includes};
-use middleware::RequestBody;
+use middleware::{PostgresConnection, RequestBody, SchoolID};
 
 pub trait Optionable<T>: Sized {
     fn log_to_option(self, ctxt: Option<&str>) -> Option<T>;
@@ -75,14 +78,23 @@ fn extract_id(req: &Request) -> Option<usize> {
         .and_then(|id| usize::from_str(&id).log("Conversion of 'id' param to usize (extract_id)"))
 }
 
+fn get_body<'a>(req: &'a Request) -> Option<&'a str> {
+    req.extensions.get::<RequestBody>().log("RequestBody could not be found (get_body)")
+        .map(|body| body.as_ref())
+}
+
 fn parse<T: Model>(req: &Request) -> Option<T> {
-    req.extensions.get::<RequestBody>().log("RequestBody extension could not be found")
-        .and_then(|body| T::parse_str(&body))
+    get_body(req).and_then(|body| T::parse_str(&body))
+}
+
+fn get_db<'a>(req: &'a Request) -> Option<&'a Connection> {
+    req.extensions.get::<PostgresConnection>().log("PostgresConnection could not be found (get_db)")
+        .map(|conn| &**conn)
 }
 
 fn get_includes(req: &Request) -> Includes {
     req.url.query()
-        .log("No query string provided")
+        .log("No query string provided (get_includes)")
         .and_then(|query| query
             .split('&')
             .filter_map(|item|
@@ -92,6 +104,17 @@ fn get_includes(req: &Request) -> Includes {
                     None
                 })
             .next()
-            .log("No include parameters"))
+            .log("No include parameters (get_includes)"))
             .unwrap_or(HashSet::new())
+}
+
+fn get_school_id(req: &Request) -> Option<usize> {
+    req.extensions.get::<SchoolID>().log("School id not found (get_school_id)")
+        .map(|id| *id)
+}
+
+pub fn auth<H: Handler>(h: H) -> Chain {
+    let mut res = Chain::new(h);
+    res.link_before(SchoolID::new());
+    res
 }
