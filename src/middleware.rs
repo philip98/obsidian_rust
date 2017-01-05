@@ -1,5 +1,7 @@
-use iron::{BeforeMiddleware, IronResult, IronError, Request};
-use iron::headers::{Authorization, Basic};
+use iron::{BeforeMiddleware, IronResult, Request};
+use iron::error::{HttpError, IronError};
+use iron::headers::{Authorization, Basic, Header, HeaderFormat};
+use iron::modifiers::{Header as MHeader};
 use iron::status::Status;
 use iron::typemap::Key;
 use r2d2::{Pool, Config, PooledConnection};
@@ -78,12 +80,14 @@ impl Key for SchoolID {
 impl BeforeMiddleware for SchoolID {
     fn before(&self, req: &mut Request) -> IronResult<()> {
         req.headers.get::<Authorization<Basic>>()
+            .log("No authentication header provided")
             .and_then(|header| AuthToken::from_header(header))
             .and_then(|token| req.extensions.get::<PostgresConnection>()
                 .log("PostgresConnection not found (SchoolID::before)")
                 .and_then(|conn| token.verify(conn)))
         .map(|school_id| {req.extensions.insert::<Self>(school_id); Ok(())})
-        .unwrap_or(Err(IronError::new(SchoolID{}, Status::Unauthorized)))
+        .unwrap_or(Err(IronError::new(SchoolID{}, (Status::Unauthorized,
+            MHeader(BasicAuthenticate("Token with secret".to_string()))))))
     }
 }
 
@@ -100,5 +104,25 @@ impl Error for SchoolID {
 impl Display for SchoolID {
     fn fmt(&self, _: &mut Formatter) -> Result<(), FError> {
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BasicAuthenticate(pub String);
+
+impl Header for BasicAuthenticate {
+    fn header_name() -> &'static str {
+        "WWW-Authenticate"
+    }
+
+    fn parse_header(_: &[Vec<u8>]) -> Result<Self, HttpError> {
+        Err(HttpError::Header)
+    }
+}
+
+impl HeaderFormat for BasicAuthenticate {
+    fn fmt_header(&self, f: &mut Formatter) -> Result<(), FError> {
+        let BasicAuthenticate(ref a) = *self;
+        write!(f, "Basic realm=\"{}\"", a)
     }
 }

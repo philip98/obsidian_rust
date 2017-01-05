@@ -2,13 +2,17 @@ use chrono::{DateTime, UTC};
 use iron::Request;
 use postgres::Connection;
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder, json};
+use std::collections::HashSet;
 
 use handlers::Optionable;
 use middleware::RequestBody;
 use models::{Model, Includes};
+use models::students::Student;
+use models::books::Book;
 
 const INSERT_BASE_SET: &'static str = "INSERT INTO base_sets (student_id, book_id, created_at) VALUES ($1, $2, $3) RETURNING id";
-const DELETE_BASE_SET: &'static str = "DELETE FROM base_sets WHERE id=$1";
+const DELETE_BASE_SET: &'static str = "DELETE FROM base_sets WHERE base_sets.id=$1 AND EXISTS
+(SELECT * FROM books WHERE books.id = base_sets.book_id AND book.school_id = $2)";
 
 pub struct BaseSet {
     id: Option<usize>,
@@ -26,20 +30,22 @@ impl BaseSet {
 }
 
 impl Model for BaseSet {
-    fn find_id(_: usize, _: &Connection, _: &Includes) -> Option<Self> {
+    fn find_id(_: usize, _: usize, _: &Connection, _: &Includes) -> Option<Self> {
         unreachable!()
     }
 
-    fn find_all(_: &Connection, _: &Includes) -> Vec<Self> {
+    fn find_all(_: usize, _: &Connection, _: &Includes) -> Vec<Self> {
         unreachable!()
     }
 
-    fn save(mut self, id: Option<usize>, conn: &Connection) -> Option<Self> {
+    fn save(mut self, id: Option<usize>, school_id: usize, conn: &Connection) -> Option<Self> {
         if let Some(_) = id {
             unreachable!()
         } else {
-            conn.prepare_cached(INSERT_BASE_SET)
-                .log("Preparing INSERT base_sets query (BaseSet::save)")
+            Book::find_id(self.book_id, school_id, conn, &HashSet::new())
+                .and_then(|_| Student::find_id(self.student_id, school_id, conn, &HashSet::new()))
+                .and_then(|_| conn.prepare_cached(INSERT_BASE_SET)
+                    .log("Preparing INSERT base_sets query (BaseSet::save)"))
                 .and_then(|stmt| stmt.query(&[&(self.student_id as i32), &(self.book_id as i32), &self.created_at])
                     .log("Executing INSERT base_sets query (BaseSet::save)")
                     .and_then(|rows| rows
@@ -50,10 +56,10 @@ impl Model for BaseSet {
         }
     }
 
-    fn delete(id: usize, conn: &Connection) -> Option<()> {
+    fn delete(id: usize, school_id: usize, conn: &Connection) -> Option<()> {
         conn.prepare_cached(DELETE_BASE_SET)
             .log("Preparing DELETE base_sets query (BaseSet::delete)")
-            .and_then(|stmt| stmt.execute(&[&(id as i32)])
+            .and_then(|stmt| stmt.execute(&[&(id as i32), &(school_id as i32)])
                 .log("Executing DELETE base_sets query (BaseSet::delete)"))
             .and_then(|modified| if modified == 1 {Some(())} else {None}
                 .log("BaseSet does not exist (BaseSet::delete)"))

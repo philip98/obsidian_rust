@@ -35,10 +35,10 @@ impl Includable {
 }
 
 pub trait Model: Encodable + Decodable {
-    fn find_id(id: usize, conn: &Connection, includes: &Includes) -> Option<Self>;
-    fn find_all(conn: &Connection,includes: &Includes) -> Vec<Self>;
-    fn save(self, id: Option<usize>, conn: &Connection) -> Option<Self>;
-    fn delete(id: usize, conn: &Connection) -> Option<()>;
+    fn find_id(id: usize, school_id: usize, conn: &Connection, includes: &Includes) -> Option<Self>;
+    fn find_all(school_id: usize, conn: &Connection,includes: &Includes) -> Vec<Self>;
+    fn save(self, id: Option<usize>, school_id: usize, conn: &Connection) -> Option<Self>;
+    fn delete(id: usize, school_id: usize, conn: &Connection) -> Option<()>;
 
     fn parse_str(body: &str) -> Option<Self> {
         json::decode::<Self>(body).log("Deserialising (Model::parse_str)")

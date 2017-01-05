@@ -8,13 +8,13 @@ use handlers::Optionable;
 use models::{Includes, Includable};
 use models::aliases::Alias;
 
-const QUERY_BOOK: &'static str = "SELECT id, isbn, title, form FROM books WHERE id = $1";
-const QUERY_BOOKS: &'static str = "SELECT id, isbn, title, form FROM books";
+const QUERY_BOOK: &'static str = "SELECT id, isbn, title, form FROM books WHERE id = $1 AND school_id = $2";
+const QUERY_BOOKS: &'static str = "SELECT id, isbn, title, form FROM books WHERE school_id = $1";
 const QUERY_ALIASES: &'static str = "SELECT id, name FROM aliases WHERE book_id=$1";
 
-const INSERT_BOOK: &'static str = "INSERT INTO books (isbn, title, form) VALUES ($1, $2, $3) RETURNING id";
-const UPDATE_BOOK: &'static str = "UPDATE books SET isbn=$2, title=$3, form=$4 WHERE id=$1";
-const DELETE_BOOK: &'static str = "DELETE FROM books WHERE id=$1";
+const INSERT_BOOK: &'static str = "INSERT INTO books (isbn, title, form, school_id) VALUES ($1, $2, $3, $4) RETURNING id";
+const UPDATE_BOOK: &'static str = "UPDATE books SET isbn=$2, title=$3, form=$4 WHERE id=$1 AND school_id=$5";
+const DELETE_BOOK: &'static str = "DELETE FROM books WHERE id=$1 AND school_id=$2";
 
 #[derive(RustcEncodable)]
 pub struct Book {
@@ -61,12 +61,13 @@ impl Book {
 }
 
 impl Model for Book {
-    fn find_id(id: usize, conn: &Connection, includes: &Includes) -> Option<Self> {
+    fn find_id(id: usize, school_id: usize, conn: &Connection, includes: &Includes) -> Option<Self> {
         if includes.contains(&Includable::BaseSetBooks) || includes.contains(&Includable::LentBooks) {
             None.log(&format!("Include params {:?} not supported", includes))
         } else {
             conn.prepare_cached(QUERY_BOOK).log("Preparing SELECT books query (Book::find_id)")
-                .and_then(|stmt| stmt.query(&[&(id as i32)]).log("Executing SELECT books query (Book::find_id)")
+                .and_then(|stmt| stmt.query(&[&(id as i32), &(school_id as i32)])
+                    .log("Executing SELECT books query (Book::find_id)")
                     .and_then(|rows| rows
                         .iter()
                         .next()
@@ -77,13 +78,14 @@ impl Model for Book {
         }
     }
 
-    fn find_all(conn: &Connection, includes: &Includes) -> Vec<Self> {
+    fn find_all(school_id: usize, conn: &Connection, includes: &Includes) -> Vec<Self> {
         if includes.contains(&Includable::BaseSetBooks) || includes.contains(&Includable::LentBooks) {
             None::<Book>.log(&format!("Include params {:?} not supported", includes));
             vec![]
         } else {
             conn.prepare_cached(QUERY_BOOKS).log("Preparing SELECT books query (Book::find_all)")
-                .and_then(|stmt| stmt.query(&[]).log("Executing SELECT books query (Book::find_all)")
+                .and_then(|stmt| stmt.query(&[&(school_id as i32)])
+                    .log("Executing SELECT books query (Book::find_all)")
                     .map(|rows| rows
                         .iter()
                         .map(|row| Book::from_db(conn, includes, row))
@@ -92,16 +94,16 @@ impl Model for Book {
         }
     }
 
-    fn save(mut self, id: Option<usize>, conn: &Connection) -> Option<Self> {
+    fn save(mut self, id: Option<usize>, school_id: usize, conn: &Connection) -> Option<Self> {
         if let Some(id) = id {
             conn.prepare_cached(UPDATE_BOOK).log("Preparing UPDATE books query (Book::save)")
-                .and_then(|stmt| stmt.execute(&[&(id as i32), &self.isbn, &self.title, &self.form])
+                .and_then(|stmt| stmt.execute(&[&(id as i32), &self.isbn, &self.title, &self.form, &(school_id as i32)])
                     .log("Executing UPDATE books query (Book::save)"))
                 .and_then(|modified| (if modified == 1 {self.id = Some(id);Some(self)} else {None})
                     .log("Row does not exist"))
         } else {
             conn.prepare_cached(INSERT_BOOK).log("Preparing INSERT books query (Book::save)")
-                .and_then(|stmt| stmt.query(&[&self.isbn, &self.title, &self.form])
+                .and_then(|stmt| stmt.query(&[&self.isbn, &self.title, &self.form, &(school_id as i32)])
                     .log("Executing INSERT books query (Books::save)")
                     .and_then(|rows| rows
                         .iter()
@@ -114,9 +116,9 @@ impl Model for Book {
         }
     }
 
-    fn delete(id: usize, conn: &Connection) -> Option<()> {
+    fn delete(id: usize, school_id: usize, conn: &Connection) -> Option<()> {
         conn.prepare_cached(DELETE_BOOK).log("Preparing DELETE books query (Book::delete)")
-            .and_then(|stmt| stmt.execute(&[&(id as i32)])
+            .and_then(|stmt| stmt.execute(&[&(id as i32), &(school_id as i32)])
                 .log("Executing DELETE books query (Book::delete)"))
             .and_then(|modified| (if modified == 1 {Some(())} else {None})
                 .log("Row does not exist"))

@@ -2,16 +2,21 @@ use chrono::{DateTime, UTC};
 use iron::Request;
 use postgres::Connection;
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder, json};
+use std::collections::HashSet;
 
 use handlers::Optionable;
 use middleware::RequestBody;
 use models::{Includes, Model};
+use models::books::Book;
+use models::students::Student;
+use models::teachers::Teacher;
 
 const INSERT_ST_LENDING: &'static str = "INSERT INTO lendings (person_type, person_id, book_id, created_at)
 VALUES ('student', $1, $2, $3) RETURNING id";
 const INSERT_TE_LENDING: &'static str = "INSERT INTO lendings (person_type, person_id, book_id, created_at)
 VALUES ('teacher', $1, $2, $3) RETURNING id";
-const DELETE_LENDING: &'static str = "DELETE FROM lendings WHERE id=$1";
+const DELETE_LENDING: &'static str = "DELETE FROM lendings WHERE lendings.id=$1 AND EXISTS
+(SELECT * FROM books WHERE book.id = lendings.book_id AND book.school_id=$2)";
 
 enum Person {
     Student(usize),
@@ -33,23 +38,25 @@ impl Lending {
 }
 
 impl Model for Lending {
-    fn find_id(_: usize, _: &Connection, _: &Includes) -> Option<Self> {
+    fn find_id(_: usize, _: usize, _: &Connection, _: &Includes) -> Option<Self> {
         unreachable!()
     }
 
-    fn find_all(_: &Connection, _: &Includes) -> Vec<Self> {
+    fn find_all(_: usize, _: &Connection, _: &Includes) -> Vec<Self> {
         unreachable!()
     }
 
-    fn save(mut self, id: Option<usize>, conn: &Connection) -> Option<Self> {
+    fn save(mut self, id: Option<usize>, school_id: usize, conn: &Connection) -> Option<Self> {
         if let Some(_) = id {
             unreachable!()
         } else {
-            let (id, query) = match self.person {
-                Person::Student(id) => (id, INSERT_ST_LENDING),
-                Person::Teacher(id) => (id, INSERT_TE_LENDING)
+            let (id, query, start) = match self.person {
+                Person::Student(id) => (id, INSERT_ST_LENDING, Student::find_id(id, school_id, conn, &HashSet::new()).map(|_|())),
+                Person::Teacher(id) => (id, INSERT_TE_LENDING, Teacher::find_id(id, school_id, conn, &HashSet::new()).map(|_|()))
             };
-            conn.prepare_cached(query).log("Preparing INSERT lendings query (Lending::save)")
+            start.and_then(|_| Book::find_id(self.book_id, school_id, conn, &HashSet::new()))
+                .and_then(|_| conn.prepare_cached(query)
+                    .log("Preparing INSERT lendings query (Lending::save)"))
                 .and_then(|stmt| stmt.query(&[&(id as i32), &(self.book_id as i32), &self.created_at])
                     .log("Executing INSERT lendings query (Lending::save)")
                     .and_then(|rows| rows
@@ -60,9 +67,9 @@ impl Model for Lending {
         }
     }
 
-    fn delete(id: usize, conn: &Connection) -> Option<()> {
+    fn delete(id: usize, school_id: usize, conn: &Connection) -> Option<()> {
         conn.prepare_cached(DELETE_LENDING).log("Preparing DELETE lendings query (Lending::delete)")
-            .and_then(|stmt| stmt.execute(&[&(id as i32)])
+            .and_then(|stmt| stmt.execute(&[&(id as i32), &(school_id as i32)])
                 .log("Executing DELETE lendings query (Lending::delete)"))
             .and_then(|modified| if modified == 1 {Some(())} else {None}
                 .log("Lending not found (Lending::delete)"))

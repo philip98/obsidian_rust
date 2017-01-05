@@ -16,18 +16,20 @@ struct LentBook {
     book: Book,
 }
 
-const QUERY_STUDENT: &'static str = "SELECT id, name, class_letter, graduation_year FROM students WHERE id = $1";
-const QUERY_STUDENTS: &'static str = "SELECT id, name, class_letter, graduation_year FROM students";
+const QUERY_STUDENT: &'static str = "SELECT id, name, class_letter, graduation_year FROM students
+WHERE id = $1, school_id=$2";
+const QUERY_STUDENTS: &'static str = "SELECT id, name, class_letter, graduation_year FROM students
+WHERE school_id=$1";
 const QUERY_LENDINGS: &'static str = "SELECT title, form, isbn, lendings.created_at, books.id, lendings.id FROM lendings, books
     WHERE lendings.person_id=$1 AND lendings.person_type='student' AND lendings.book_id = books.id";
 const QUERY_BASE_SETS: &'static str = "SELECT title, form, isbn, base_sets.created_at, books.id, base_sets.id FROM base_sets, books
     WHERE base_sets.student_id=$1 AND base_sets.book_id = books.id";
 
-const INSERT_STUDENT: &'static str = "INSERT INTO students (name, graduation_year, class_letter)
-    VALUES ($1, $2, $3) RETURNING id";
+const INSERT_STUDENT: &'static str = "INSERT INTO students (name, graduation_year, class_letter, school_id)
+    VALUES ($1, $2, $3, $4) RETURNING id";
 const UPDATE_STUDENT: &'static str = "UPDATE students SET name=$2, graduation_year=$3,
-    class_letter=$4 WHERE id=$1";
-const DELETE_STUDENT: &'static str = "DELETE FROM students WHERE id=$1";
+    class_letter=$4 WHERE id=$1 AND school_id=$5";
+const DELETE_STUDENT: &'static str = "DELETE FROM students WHERE id=$1 AND school_id=$2";
 
 #[derive(RustcEncodable)]
 pub struct Student {
@@ -98,12 +100,13 @@ impl Student {
 }
 
 impl Model for Student {
-    fn find_id(id: usize, conn: &Connection, includes: &Includes) -> Option<Student> {
+    fn find_id(id: usize, school_id: usize, conn: &Connection, includes: &Includes) -> Option<Student> {
         if includes.contains(&Includable::Aliases) {
             None.log(&format!("Include params {:?} not supported", includes))
         } else {
             conn.prepare_cached(QUERY_STUDENT).log("Preparing SELECT students query (Student::find_id)")
-                .and_then(|stmt| stmt.query(&[&(id as i32)]).log("Executing SELECT students query (Student::find_id)")
+                .and_then(|stmt| stmt.query(&[&(id as i32), &(school_id as i32)])
+                    .log("Executing SELECT students query (Student::find_id)")
                     .and_then(|rows| rows
                         .iter()
                         .next()
@@ -114,13 +117,14 @@ impl Model for Student {
             }
     }
 
-    fn find_all(conn: &Connection, includes: &Includes) -> Vec<Student> {
+    fn find_all(school_id: usize, conn: &Connection, includes: &Includes) -> Vec<Student> {
         if includes.contains(&Includable::Aliases) {
             None::<Student>.log(&format!("Include params {:?} not supported", includes));
             vec![]
         } else {
             conn.prepare_cached(QUERY_STUDENTS).log("Preparing SELECT query (Student::find_all)")
-                .and_then(|stmt| stmt.query(&[]).log("Executing SELECT query (Student::find_all)")
+                .and_then(|stmt| stmt.query(&[&(school_id as i32)])
+                    .log("Executing SELECT query (Student::find_all)")
                     .map(|rows| rows
                         .iter()
                         .map(|row| Student::from_db(conn, includes, row))
@@ -129,16 +133,18 @@ impl Model for Student {
         }
     }
 
-    fn save(mut self, id: Option<usize>, conn: &Connection) -> Option<Self> {
+    fn save(mut self, id: Option<usize>, school_id: usize, conn: &Connection) -> Option<Self> {
         if let Some(id) = id {
             conn.prepare_cached(UPDATE_STUDENT).log("Preparing UPDATE query (Student::save)")
-                .and_then(|stmt| stmt.execute(&[&(id as i32), &self.name, &self.graduation_year, &self.class_letter])
+                .and_then(|stmt| stmt.execute(&[&(id as i32), &self.name, &self.graduation_year,
+                    &self.class_letter, &(school_id as i32)])
                     .log("Executing UPDATE query (Student::save)"))
                 .and_then(|modified| (if modified == 1 {self.id = Some(id); Some(self)} else {None})
                     .log("Row does not exist (Student::save)"))
         } else {
             conn.prepare_cached(INSERT_STUDENT).log("Preparing INSERT query (Student::save)")
-                .and_then(|stmt| stmt.query(&[&self.name, &self.graduation_year, &self.class_letter])
+                .and_then(|stmt| stmt.query(&[&self.name, &self.graduation_year, &self.class_letter,
+                    &(school_id as i32)])
                     .log("Executing INSERT query (Student::save)")
                     .and_then(|rows| rows
                         .iter()
@@ -151,9 +157,10 @@ impl Model for Student {
         }
     }
 
-    fn delete(id: usize, conn: &Connection) -> Option<()> {
+    fn delete(id: usize, school_id: usize, conn: &Connection) -> Option<()> {
         conn.prepare_cached(DELETE_STUDENT).log("Preparing DELETE query (Student::delete)")
-            .and_then(|stmt| stmt.execute(&[&(id as i32)]).log("Executing DELETE query (Student::delete)"))
+            .and_then(|stmt| stmt.execute(&[&(id as i32), &(school_id as i32)])
+                .log("Executing DELETE query (Student::delete)"))
             .and_then(|modified| (if modified == 1 {Some(())} else {None})
                 .log("Row does not exist (Student::delete)"))
     }

@@ -6,6 +6,7 @@ use iron::status::Status;
 use rustc_serialize::json;
 
 use handlers::{check_content_type, get_body, get_db, Optionable};
+use middleware::BasicAuthenticate;
 use models::schools::AuthData;
 use models::sessions::AuthToken;
 
@@ -20,7 +21,7 @@ pub fn new(req: &mut Request) -> IronResult<Response> {
         println!("[{}] Successfully handled sessions::new", UTC::now().format("%FT%T%:z"));
         Ok(Response::with((Status::Created, ser, Header(ContentType::json()))))
     } else {
-        Ok(Response::with(Status::Unauthorized))
+        Ok(Response::with((Status::Unauthorized, Header(BasicAuthenticate("Token with secret".to_string())))))
     }
 }
 
@@ -33,6 +34,6 @@ pub fn delete(req: &mut Request) -> IronResult<Response> {
         println!("[{}] Successfully handlede sessions::delete", UTC::now().format("%FT%T%:z"));
         Ok(Response::with(Status::NoContent))
     } else {
-        Ok(Response::with(Status::Unauthorized))
+        Ok(Response::with((Status::Unauthorized, Header(BasicAuthenticate("Token with secret".to_string())))))
     }
 }
