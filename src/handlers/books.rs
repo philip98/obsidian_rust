@@ -5,15 +5,13 @@ use iron::modifiers::Header;
 use iron::status::Status;
 use rustc_serialize::json;
 
-use handlers::{check_content_type, extract_id, get_includes, parse, Optionable};
-use middleware::PostgresConnection;
+use handlers::{check_content_type, extract_id, get_db, get_includes, parse, Optionable};
 use models::Model;
 use models::books::Book;
 
 pub fn index(req: &mut Request) -> IronResult<Response> {
     let includes = get_includes(req);
-    if let Some(ser) = req.extensions.get::<PostgresConnection>()
-        .log("PostgresConnection extension could not be found (books::index)")
+    if let Some(ser) = get_db(req)
         .and_then(|conn| json::encode(&Book::find_all(conn, &includes))
             .log("Serialising vector of Books (books::index)")) {
         println!("[{}] Successfully handled books::index (includes={:?})", UTC::now().format("%FT%T%:z"), &includes);
@@ -26,8 +24,7 @@ pub fn index(req: &mut Request) -> IronResult<Response> {
 pub fn show(req: &mut Request) -> IronResult<Response> {
     let includes = get_includes(req);
     if let Some(ser) = extract_id(req)
-        .and_then(|id| req.extensions.get::<PostgresConnection>()
-            .log("PostgresConnection extension could not be found (books::show)")
+        .and_then(|id| get_db(req)
             .and_then(|conn| Book::find_id(id, conn, &includes)))
         .and_then(|book| book.to_str()) {
         println!("[{}] Successfully handled books::show (includes={:?})", UTC::now().format("%FT%T%:z"), &includes);
@@ -41,8 +38,7 @@ pub fn edit(req: &mut Request) -> IronResult<Response> {
     if let Some(ser) = check_content_type(req)
         .and_then(|_| extract_id(req))
         .and_then(|id| parse::<Book>(req)
-            .and_then(|book| req.extensions.get::<PostgresConnection>()
-                .log("PostgresConnection extension could not be found (books::edit)")
+            .and_then(|book| get_db(req)
                 .and_then(|conn| book.save(Some(id), conn))))
         .and_then(|book| book.to_str()) {
         println!("[{}] Successfully handled books::edit", UTC::now().format("%FT%T%:z"));
@@ -55,8 +51,7 @@ pub fn edit(req: &mut Request) -> IronResult<Response> {
 pub fn new(req: &mut Request) -> IronResult<Response> {
     if let Some(ser) = check_content_type(req)
         .and_then(|_| parse::<Book>(req))
-        .and_then(|book| req.extensions.get::<PostgresConnection>()
-            .log("PostgresConnection extension could not be found (books::new)")
+        .and_then(|book| get_db(req)
             .and_then(|conn| book.save(None, conn)))
         .and_then(|book| book.to_str()) {
         println!("[{}] Successfully handled books::new", UTC::now().format("%FT%T%:z"));
@@ -68,8 +63,7 @@ pub fn new(req: &mut Request) -> IronResult<Response> {
 
 pub fn delete(req: &mut Request) -> IronResult<Response> {
     if extract_id(req)
-        .and_then(|id| req.extensions.get::<PostgresConnection>()
-            .log("PostgresConnection extension could not be found (books::delete)")
+        .and_then(|id| get_db(req)
             .and_then(|conn| Book::delete(id, conn))).is_some() {
         println!("[{}] Successfully handled books::delete", UTC::now().format("%FT%T%:z"));
         Ok(Response::with(Status::NoContent))
