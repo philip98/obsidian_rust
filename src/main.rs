@@ -10,6 +10,7 @@ extern crate bcrypt;
 #[macro_use]
 extern crate router;
 
+mod error;
 mod models;
 mod handlers;
 mod middleware;

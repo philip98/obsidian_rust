@@ -1,13 +1,11 @@
-use rustc_serialize::{Decodable, Decoder, json};
+use rustc_serialize::{Decodable, Decoder};
 use postgres::Connection;
 use postgres::rows::Row;
-use iron::Request;
 use chrono::{DateTime, UTC};
 
+use error::ObsidianError;
 use models::{Includable, Includes, Model};
 use models::books::Book;
-use handlers::Optionable;
-use middleware::RequestBody;
 
 #[derive(RustcEncodable)]
 struct LentBook {
@@ -42,127 +40,108 @@ pub struct Student {
 }
 
 impl Student {
-    pub fn parse_many(req: &Request) -> Option<Vec<Student>> {
-        req.extensions.get::<RequestBody>().log("RequestBody extension could not be found (Student::parse_many)")
-            .and_then(|body| json::decode::<Vec<Student>>(&body).log("Parsing vector of Students (Student::parse_many)"))
+    fn find_base_sets(student_id: usize, conn: &Connection) -> Result<Vec<LentBook>, ObsidianError> {
+        let stmt = try!(conn.prepare_cached(QUERY_BASE_SETS));
+        let rows = try!(stmt.query(&[&(student_id as i32)]));
+        Ok(rows.iter()
+            .map(|row| LentBook {
+                id: row.get::<usize, i32>(5) as usize,
+                created_at: row.get::<usize, DateTime<UTC>>(3).to_rfc3339(),
+                book: Book::new(Some(row.get::<usize, i32>(4) as usize), row.get::<usize, String>(2),
+                    row.get::<usize, String>(0), row.get::<usize, String>(1))
+            })
+            .collect::<Vec<LentBook>>())
     }
 
-    fn find_base_sets(student_id: usize, conn: &Connection) -> Option<Vec<LentBook>> {
-        conn.prepare_cached(QUERY_BASE_SETS).log("Preparing SELECT base_sets query (find_base_sets)")
-            .and_then(|stmt| stmt.query(&[&(student_id as i32)]).log("Executing SELECT base_sets query (find_base_sets)")
-                .map(|rows| rows
-                    .iter()
-                    .map(|row| LentBook {
-                        id: row.get::<usize, i32>(5) as usize,
-                        created_at: row.get::<usize, DateTime<UTC>>(3).to_rfc3339(),
-                        book: Book::new(Some(row.get::<usize, i32>(4) as usize), row.get::<usize, String>(2),
-                            row.get::<usize, String>(0), row.get::<usize, String>(1))
-                    })
-                    .collect()))
+    fn find_lendings(student_id: usize, conn: &Connection) -> Result<Vec<LentBook>, ObsidianError> {
+        let stmt = try!(conn.prepare_cached(QUERY_LENDINGS));
+        let rows = try!(stmt.query(&[&(student_id as i32)]));
+        Ok(rows.iter()
+            .map(|row| LentBook {
+                id: row.get::<usize, i32>(5) as usize,
+                created_at: row.get::<usize, DateTime<UTC>>(3).to_rfc3339(),
+                book: Book::new(Some(row.get::<usize, i32>(4) as usize), row.get::<usize, String>(2),
+                    row.get::<usize, String>(0), row.get::<usize, String>(1))
+            })
+            .collect::<Vec<LentBook>>())
     }
 
-    fn find_lendings(student_id: usize, conn: &Connection) -> Option<Vec<LentBook>> {
-        conn.prepare_cached(QUERY_LENDINGS).log("Preparing SELECT lendings query (find_lendings)")
-            .and_then(|stmt| stmt.query(&[&(student_id as i32)]).log("Executing SELECT lendings query (find_lendings)")
-                .map(|rows| rows
-                    .iter()
-                    .map(|row| LentBook {
-                        id: row.get::<usize, i32>(5) as usize,
-                        created_at: row.get::<usize, DateTime<UTC>>(3).to_rfc3339(),
-                        book: Book::new(Some(row.get::<usize, i32>(4) as usize), row.get::<usize, String>(2),
-                            row.get::<usize, String>(0), row.get::<usize, String>(1))
-                    })
-                    .collect()))
-    }
-
-    fn from_db(conn: &Connection, includes: &Includes, row: Row) -> Student {
+    fn from_db(conn: &Connection, includes: &Includes, row: Row) -> Result<Student, ObsidianError> {
         let id = row.get::<usize, i32>(0) as usize;
         let base_sets = if includes.contains(&Includable::BaseSetBooks) {
-            Student::find_base_sets(id, conn)
+            Some(try!(Student::find_base_sets(id, conn)))
         } else {
             None
         };
         let lendings = if includes.contains(&Includable::LentBooks) {
-            Student::find_lendings(id, conn)
+            Some(try!(Student::find_lendings(id, conn)))
         } else {
             None
         };
 
-        Student{
+        Ok(Student{
             id: Some(id),
             name: row.get(1),
             class_letter: row.get(2),
             graduation_year: row.get(3),
             lent_books: lendings,
             base_sets: base_sets
-        }
+        })
     }
 }
 
 impl Model for Student {
-    fn find_id(id: usize, school_id: usize, conn: &Connection, includes: &Includes) -> Option<Student> {
-        if includes.contains(&Includable::Aliases) {
-            None.log(&format!("Include params {:?} not supported", includes))
+    fn find_id(id: usize, school_id: usize, conn: &Connection, includes: &Includes) -> Result<Student, ObsidianError> {
+        does_not_support!(Aliases, includes);
+        let stmt = try!(conn.prepare_cached(QUERY_STUDENT));
+        let rows = try!(stmt.query(&[&(id as i32), &(school_id as i32)]));
+        let row = try!(rows.iter().next().ok_or(ObsidianError::RecordNotFound("Student")));
+        let student = try!(Student::from_db(conn, includes, row));
+        if student.id == Some(id) {
+            Ok(student)
         } else {
-            conn.prepare_cached(QUERY_STUDENT).log("Preparing SELECT students query (Student::find_id)")
-                .and_then(|stmt| stmt.query(&[&(id as i32), &(school_id as i32)])
-                    .log("Executing SELECT students query (Student::find_id)")
-                    .and_then(|rows| rows
-                        .iter()
-                        .next()
-                        .map(|row| Student::from_db(conn, includes, row))
-                        .log("No students found (Student::find_id)")))
-                .and_then(|student| (if student.id == Some(id) {Some(student)} else {None})
-                    .log("Student has wrong id (Student::find_id)"))
-            }
-    }
-
-    fn find_all(school_id: usize, conn: &Connection, includes: &Includes) -> Vec<Student> {
-        if includes.contains(&Includable::Aliases) {
-            None::<Student>.log(&format!("Include params {:?} not supported", includes));
-            vec![]
-        } else {
-            conn.prepare_cached(QUERY_STUDENTS).log("Preparing SELECT query (Student::find_all)")
-                .and_then(|stmt| stmt.query(&[&(school_id as i32)])
-                    .log("Executing SELECT query (Student::find_all)")
-                    .map(|rows| rows
-                        .iter()
-                        .map(|row| Student::from_db(conn, includes, row))
-                        .collect::<Vec<Student>>()))
-                .unwrap_or(vec![])
+            Err(ObsidianError::RecordNotFound("Student"))
         }
     }
 
-    fn save(mut self, id: Option<usize>, school_id: usize, conn: &Connection) -> Option<Self> {
+    fn find_all(school_id: usize, conn: &Connection, includes: &Includes) -> Result<Vec<Student>, ObsidianError> {
+        does_not_support!(Aliases, includes);
+        let stmt = try!(conn.prepare_cached(QUERY_STUDENTS));
+        let rows = try!(stmt.query(&[&(school_id as i32)]));
+        rows.iter()
+            .map(|row| Student::from_db(conn, includes, row))
+            .collect::<Result<Vec<Student>, ObsidianError>>()
+    }
+
+    fn save(mut self, id: Option<usize>, school_id: usize, conn: &Connection) -> Result<Self, ObsidianError> {
         if let Some(id) = id {
-            conn.prepare_cached(UPDATE_STUDENT).log("Preparing UPDATE query (Student::save)")
-                .and_then(|stmt| stmt.execute(&[&(id as i32), &self.name, &self.graduation_year,
-                    &self.class_letter, &(school_id as i32)])
-                    .log("Executing UPDATE query (Student::save)"))
-                .and_then(|modified| (if modified == 1 {self.id = Some(id); Some(self)} else {None})
-                    .log("Row does not exist (Student::save)"))
+            let stmt = try!(conn.prepare_cached(UPDATE_STUDENT));
+            let modified = try!(stmt.execute(&[&(id as i32), &self.name, &self.graduation_year,
+                &self.class_letter, &(school_id as i32)]));
+            if modified == 1 {
+                self.id = Some(id);
+                Ok(self)
+            } else {
+                Err(ObsidianError::RecordNotFound("Student"))
+            }
         } else {
-            conn.prepare_cached(INSERT_STUDENT).log("Preparing INSERT query (Student::save)")
-                .and_then(|stmt| stmt.query(&[&self.name, &self.graduation_year, &self.class_letter,
-                    &(school_id as i32)])
-                    .log("Executing INSERT query (Student::save)")
-                    .and_then(|rows| rows
-                        .iter()
-                        .next()
-                        .map(|row| {
-                            self.id = Some(row.get::<usize, i32>(0) as usize);
-                            self
-                        })
-                        .log("Finding inserted id (Student::save)")))
+            let stmt = try!(conn.prepare_cached(INSERT_STUDENT));
+            let rows = try!(stmt.query(&[&self.name, &self.graduation_year, &self.class_letter,
+                &(school_id as i32)]));
+            let row = rows.iter().next().unwrap();
+            self.id = Some(row.get::<usize, i32>(0) as usize);
+            Ok(self)
         }
     }
 
-    fn delete(id: usize, school_id: usize, conn: &Connection) -> Option<()> {
-        conn.prepare_cached(DELETE_STUDENT).log("Preparing DELETE query (Student::delete)")
-            .and_then(|stmt| stmt.execute(&[&(id as i32), &(school_id as i32)])
-                .log("Executing DELETE query (Student::delete)"))
-            .and_then(|modified| (if modified == 1 {Some(())} else {None})
-                .log("Row does not exist (Student::delete)"))
+    fn delete(id: usize, school_id: usize, conn: &Connection) -> Result<(), ObsidianError> {
+        let stmt = try!(conn.prepare_cached(DELETE_STUDENT));
+        let modified = try!(stmt.execute(&[&(id as i32), &(school_id as i32)]));
+        if modified == 1 {
+            Ok(())
+        } else {
+            Err(ObsidianError::RecordNotFound("Student"))
+        }
     }
 }
 

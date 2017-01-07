@@ -1,11 +1,9 @@
 use chrono::{DateTime, UTC};
-use iron::Request;
 use postgres::Connection;
-use rustc_serialize::{Encodable, Encoder, Decodable, Decoder, json};
+use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 use std::collections::HashSet;
 
-use handlers::Optionable;
-use middleware::RequestBody;
+use error::ObsidianError;
 use models::{Includes, Model};
 use models::books::Book;
 use models::students::Student;
@@ -30,49 +28,46 @@ pub struct Lending {
     book_id: usize
 }
 
-impl Lending {
-    pub fn parse_many(req: &Request) -> Option<Vec<Lending>> {
-        req.extensions.get::<RequestBody>().log("RequestBody extension not found (Lending::parse_many)")
-            .and_then(|body| json::decode::<Vec<Lending>>(&body).log("Parsing vector of lendings (Lending::parse_many)"))
-    }
-}
-
 impl Model for Lending {
-    fn find_id(_: usize, _: usize, _: &Connection, _: &Includes) -> Option<Self> {
+    fn find_id(_: usize, _: usize, _: &Connection, _: &Includes) -> Result<Self, ObsidianError> {
         unreachable!()
     }
 
-    fn find_all(_: usize, _: &Connection, _: &Includes) -> Vec<Self> {
+    fn find_all(_: usize, _: &Connection, _: &Includes) -> Result<Vec<Self>, ObsidianError> {
         unreachable!()
     }
 
-    fn save(mut self, id: Option<usize>, school_id: usize, conn: &Connection) -> Option<Self> {
+    fn save(mut self, id: Option<usize>, school_id: usize, conn: &Connection) -> Result<Self, ObsidianError> {
         if let Some(_) = id {
             unreachable!()
         } else {
-            let (id, query, start) = match self.person {
-                Person::Student(id) => (id, INSERT_ST_LENDING, Student::find_id(id, school_id, conn, &HashSet::new()).map(|_|())),
-                Person::Teacher(id) => (id, INSERT_TE_LENDING, Teacher::find_id(id, school_id, conn, &HashSet::new()).map(|_|()))
+            let (id, query) = match self.person {
+                Person::Student(id) => {
+                    try!(Student::find_id(id, school_id, conn, &HashSet::new()));
+                    (id, INSERT_ST_LENDING)
+                },
+                Person::Teacher(id) => {
+                    try!(Teacher::find_id(id, school_id, conn, &HashSet::new()));
+                    (id, INSERT_TE_LENDING)
+                }
             };
-            start.and_then(|_| Book::find_id(self.book_id, school_id, conn, &HashSet::new()))
-                .and_then(|_| conn.prepare_cached(query)
-                    .log("Preparing INSERT lendings query (Lending::save)"))
-                .and_then(|stmt| stmt.query(&[&(id as i32), &(self.book_id as i32), &self.created_at])
-                    .log("Executing INSERT lendings query (Lending::save)")
-                    .and_then(|rows| rows
-                        .iter()
-                        .next()
-                        .map(|row| {self.id = Some(row.get::<usize, i32>(0) as usize); self})
-                        .log("No id found (Lending::save)")))
+            try!(Book::find_id(self.book_id, school_id, conn, &HashSet::new()));
+            let stmt = try!(conn.prepare_cached(query));
+            let rows = try!(stmt.query(&[&(id as i32), &(self.book_id as i32), &self.created_at]));
+            let row = rows.iter().next().unwrap();
+            self.id = Some(row.get::<usize, i32>(0) as usize);
+            Ok(self)
         }
     }
 
-    fn delete(id: usize, school_id: usize, conn: &Connection) -> Option<()> {
-        conn.prepare_cached(DELETE_LENDING).log("Preparing DELETE lendings query (Lending::delete)")
-            .and_then(|stmt| stmt.execute(&[&(id as i32), &(school_id as i32)])
-                .log("Executing DELETE lendings query (Lending::delete)"))
-            .and_then(|modified| if modified == 1 {Some(())} else {None}
-                .log("Lending not found (Lending::delete)"))
+    fn delete(id: usize, school_id: usize, conn: &Connection) -> Result<(), ObsidianError> {
+        let stmt = try!(conn.prepare_cached(DELETE_LENDING));
+        let modified = try!(stmt.execute(&[&(id as i32), &(school_id as i32)]));
+        if modified == 1 {
+            Ok(())
+        } else {
+            Err(ObsidianError::RecordNotFound("Lending"))
+        }
     }
 }
 

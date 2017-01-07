@@ -1,89 +1,72 @@
 use chrono::UTC;
 use iron::{Request, IronResult, Response};
-use iron::status::Status;
-use iron::modifiers::Header;
-use iron::headers::ContentType;
-use rustc_serialize::json;
+use postgres::Connection;
 
+use error::ObsidianError;
+use handlers::{check_content_type, get_db, get_id, get_includes, get_school_id, parse, serialise};
 use models::Model;
 use models::students::Student;
-use super::{check_content_type, extract_id, parse, get_db, get_includes, get_school_id, Optionable};
 
 pub fn index(req: &mut Request) -> IronResult<Response> {
+    let school_id = get_school_id(req);
+    let conn = get_db(req);
     let includes = get_includes(req);
-    if let Some(ser) = get_db(req)
-            .and_then(|conn| get_school_id(req)
-                .and_then(|school_id| json::encode(&Student::find_all(school_id, conn, &includes))
-                    .log("Serialising vector of Students (students::index)"))) {
-        println!("[{}] Successfully handled students::index request (include={:?})", UTC::now().format("%FT%T%:z"), &includes);
-        Ok(Response::with((Status::Ok, ser, Header(ContentType::json()))))
-    } else {
-        Ok(Response::with(Status::NotFound))
-    }
+    let students = try!(Student::find_all(school_id, conn, &includes));
+    println!("[{}] Successfully handled students::index request (include={:?})", UTC::now().format("%FT%T%:z"), &includes);
+    respond_with!(Ok, students)
 }
 
 pub fn show(req: &mut Request) -> IronResult<Response> {
+    let id = try!(get_id(req));
+    let school_id = get_school_id(req);
+    let conn = get_db(req);
     let includes = get_includes(req);
-    if let Some(ser) = extract_id(req)
-            .and_then(|id| get_db(req)
-                .and_then(|conn| get_school_id(req)
-                    .and_then(|school_id| Student::find_id(id, school_id, conn, &includes))))
-            .and_then(|student| student.to_str()) {
-        println!("[{}] Successfully handled students::show request (include={:?})", UTC::now().format("%FT%T%:z"), &includes);
-        Ok(Response::with((Status::Ok, ser, Header(ContentType::json()))))
-    } else {
-        Ok(Response::with(Status::NotFound))
-    }
+    let student = try!(Student::find_id(id, school_id, conn, &includes));
+    println!("[{}] Successfully handled students::show request (include={:?})", UTC::now().format("%FT%T%:z"), &includes);
+    respond_with!(Ok, student)
 }
 
 pub fn edit(req: &mut Request) -> IronResult<Response> {
-    if let Some(ser) = check_content_type(req)
-        .and_then(|_| extract_id(req))
-        .and_then(|id| parse::<Student>(req)
-            .and_then(|student| get_db(req)
-                .and_then(|conn| get_school_id(req)
-                    .and_then(|school_id| student.save(Some(id), school_id, conn)))))
-        .and_then(|student| student.to_str()) {
-        println!("[{}] Successfully handled students::edit request", UTC::now().format("%FT%T%:z"));
-        Ok(Response::with((Status::Ok, ser, Header(ContentType::json()))))
-    } else {
-        Ok(Response::with(Status::NotFound))
-    }
+    try!(check_content_type(req));
+    let student = try!(parse::<Student>(req));
+    let id = try!(get_id(req));
+    let school_id = get_school_id(req);
+    let conn = get_db(req);
+    let student = try!(student.save(Some(id), school_id, conn));
+    println!("[{}] Successfully handled students::edit request", UTC::now().format("%FT%T%:z"));
+    respond_with!(Ok, student)
 }
 
 pub fn new(req: &mut Request) -> IronResult<Response> {
-    if let Some(ser) = check_content_type(req)
-        .and_then(|_| parse::<Student>(req))
-        .and_then(|student| get_db(req)
-            .and_then(|conn| get_school_id(req)
-                .and_then(|school_id| student.save(None, school_id, conn))))
-        .and_then(|student| student.to_str()) {
-        println!("[{}] Successfully handled students::new request (single student)", UTC::now().format("%FT%T%:z"));
-        Ok(Response::with((Status::Created, ser, Header(ContentType::json()))))
-    } else if let Some(ser) = check_content_type(req)
-        .and_then(|_| Student::parse_many(req))
-        .and_then(|students| get_db(req)
-            .and_then(|conn| get_school_id(req)
-                .map(|school_id| students.into_iter()
-                    .filter_map(|student| student.save(None, school_id, conn))
-                    .collect::<Vec<Student>>())))
-        .and_then(|students| json::encode(&students)
-            .log("Serialising vector of Students (students::new)")) {
-        println!("[{}] Successfully handled students::new request (multiple students)", UTC::now().format("%FT%T%:z"));
-        Ok(Response::with((Status::Created, ser, Header(ContentType::json()))))
-    } else {
-        Ok(Response::with(Status::BadRequest))
+    fn single(req: &Request, school_id: usize, conn: &Connection) -> IronResult<String> {
+        let student = try!(parse::<Student>(req));
+        let student = try!(student.save(None, school_id, conn));
+        let ser = try!(serialise(student));
+        Ok(ser)
     }
+
+    fn multiple(req: &Request, school_id: usize, conn: &Connection) -> IronResult<String> {
+        let students = try!(parse::<Vec<Student>>(req));
+        let students = try!(students.into_iter()
+            .map(|student| student.save(None, school_id, conn))
+            .collect::<Result<Vec<Student>, ObsidianError>>());
+        let ser = try!(serialise(students));
+        Ok(ser)
+    }
+
+    try!(check_content_type(req));
+    let school_id = get_school_id(req);
+    let conn = get_db(req);
+    let ser = try!(single(req, school_id, conn).or_else(|_| multiple(req, school_id, conn)));
+    println!("[{}] Successfully handled students::new request", UTC::now().format("%FT%T%:z"));
+    respond_with!(Created, ser)
 }
 
 pub fn delete(req: &mut Request) -> IronResult<Response> {
-    if extract_id(req)
-        .and_then(|id| get_db(req)
-            .and_then(|conn| get_school_id(req)
-                .and_then(|school_id| Student::delete(id, school_id, conn)))).is_some() {
-        println!("[{}] Successfully handled students::delete request", UTC::now().format("%FT%T%:z"));
-        Ok(Response::with(Status::NoContent))
-    } else {
-        Ok(Response::with(Status::NotFound))
-    }
+    let id = try!(get_id(req));
+    let school_id = get_school_id(req);
+    let conn = get_db(req);
+    try!(Student::delete(id, school_id, conn));
+    println!("[{}] Successfully handled students::delete request", UTC::now().format("%FT%T%:z"));
+    respond_with!(NoContent)
 }

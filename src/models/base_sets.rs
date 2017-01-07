@@ -1,11 +1,9 @@
 use chrono::{DateTime, UTC};
-use iron::Request;
 use postgres::Connection;
-use rustc_serialize::{Encodable, Encoder, Decodable, Decoder, json};
+use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 use std::collections::HashSet;
 
-use handlers::Optionable;
-use middleware::RequestBody;
+use error::ObsidianError;
 use models::{Model, Includes};
 use models::students::Student;
 use models::books::Book;
@@ -21,48 +19,38 @@ pub struct BaseSet {
     created_at: DateTime<UTC>
 }
 
-impl BaseSet {
-    pub fn parse_many(req: &Request) -> Option<Vec<BaseSet>> {
-        req.extensions.get::<RequestBody>().log("RequestBody extension could not be found (BaseSet::parse_many)")
-            .and_then(|body| json::decode::<Vec<BaseSet>>(&body).log("Parsing vector of BaseSets (BaseSet::parse_many)"))
-    }
-
-}
-
 impl Model for BaseSet {
-    fn find_id(_: usize, _: usize, _: &Connection, _: &Includes) -> Option<Self> {
+    fn find_id(_: usize, _: usize, _: &Connection, _: &Includes) -> Result<Self, ObsidianError> {
         unreachable!()
     }
 
-    fn find_all(_: usize, _: &Connection, _: &Includes) -> Vec<Self> {
+    fn find_all(_: usize, _: &Connection, _: &Includes) -> Result<Vec<Self>, ObsidianError> {
         unreachable!()
     }
 
-    fn save(mut self, id: Option<usize>, school_id: usize, conn: &Connection) -> Option<Self> {
+    fn save(mut self, id: Option<usize>, school_id: usize, conn: &Connection) -> Result<Self, ObsidianError> {
         if let Some(_) = id {
             unreachable!()
         } else {
-            Book::find_id(self.book_id, school_id, conn, &HashSet::new())
-                .and_then(|_| Student::find_id(self.student_id, school_id, conn, &HashSet::new()))
-                .and_then(|_| conn.prepare_cached(INSERT_BASE_SET)
-                    .log("Preparing INSERT base_sets query (BaseSet::save)"))
-                .and_then(|stmt| stmt.query(&[&(self.student_id as i32), &(self.book_id as i32), &self.created_at])
-                    .log("Executing INSERT base_sets query (BaseSet::save)")
-                    .and_then(|rows| rows
-                        .iter()
-                        .next()
-                        .map(|row| {self.id = Some(row.get::<usize, i32>(0) as usize); self})
-                        .log("No id returned (BaseSet::save)")))
+            try!(Book::find_id(self.book_id, school_id, conn, &HashSet::new()));
+            try!(Student::find_id(self.book_id, school_id, conn, &HashSet::new()));
+            let stmt = try!(conn.prepare_cached(INSERT_BASE_SET));
+            let rows = try!(stmt.query(&[&(self.student_id as i32), &(self.book_id as i32),
+                &self.created_at]));
+            let row = rows.iter().next().unwrap();
+            self.id = Some(row.get::<usize, i32>(0) as usize);
+            Ok(self)
         }
     }
 
-    fn delete(id: usize, school_id: usize, conn: &Connection) -> Option<()> {
-        conn.prepare_cached(DELETE_BASE_SET)
-            .log("Preparing DELETE base_sets query (BaseSet::delete)")
-            .and_then(|stmt| stmt.execute(&[&(id as i32), &(school_id as i32)])
-                .log("Executing DELETE base_sets query (BaseSet::delete)"))
-            .and_then(|modified| if modified == 1 {Some(())} else {None}
-                .log("BaseSet does not exist (BaseSet::delete)"))
+    fn delete(id: usize, school_id: usize, conn: &Connection) -> Result<(), ObsidianError> {
+        let stmt = try!(conn.prepare_cached(DELETE_BASE_SET));
+        let modified = try!(stmt.execute(&[&(id as i32), &(school_id as i32)]));
+        if modified == 1 {
+            Ok(())
+        } else {
+            Err(ObsidianError::RecordNotFound("BaseSet"))
+        }
     }
 }
 

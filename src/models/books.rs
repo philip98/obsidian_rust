@@ -4,7 +4,7 @@ use postgres::Connection;
 use postgres::rows::Row;
 use rustc_serialize::{Decoder, Decodable};
 
-use handlers::Optionable;
+use error::ObsidianError;
 use models::{Includes, Includable};
 use models::aliases::Alias;
 
@@ -36,92 +36,85 @@ impl Book {
         }
     }
 
-    fn from_db(conn: &Connection, includes: &Includes, row: Row) -> Book {
+    fn from_db(conn: &Connection, includes: &Includes, row: Row) -> Result<Book, ObsidianError> {
         let id = row.get::<usize, i32>(0) as usize;
         let aliases = if includes.contains(&Includable::Aliases) {
-            conn.prepare_cached(QUERY_ALIASES).log("Preparing SELECT aliases query (Book::from_db)")
-                .and_then(|stmt| stmt.query(&[&(id as i32)])
-                    .log("Executing SELECT aliases query (Book::from_db)")
-                    .map(|rows| rows
-                        .iter()
-                        .map(|row| Alias::new(Some(row.get::<usize, i32>(0) as usize),
-                            id, row.get::<usize, String>(1)))
-                        .collect::<Vec<Alias>>()))
+            let stmt = try!(conn.prepare_cached(QUERY_ALIASES));
+            let rows = try!(stmt.query(&[&(id as i32)]));
+            let aliases = rows
+                .iter()
+                .map(|row| Alias::new(Some(row.get::<usize, i32>(0) as usize),
+                    id, row.get::<usize, String>(1)))
+                .collect::<Vec<Alias>>();
+            Some(aliases)
         } else {
             None
         };
-        Book {
+        Ok(Book {
             id: Some(id),
             isbn: row.get::<usize, String>(1),
             title: row.get::<usize, String>(2),
             form: row.get::<usize, String>(3),
             aliases: aliases
-        }
+        })
     }
 }
 
 impl Model for Book {
-    fn find_id(id: usize, school_id: usize, conn: &Connection, includes: &Includes) -> Option<Self> {
-        if includes.contains(&Includable::BaseSetBooks) || includes.contains(&Includable::LentBooks) {
-            None.log(&format!("Include params {:?} not supported", includes))
+    fn find_id(id: usize, school_id: usize, conn: &Connection, includes: &Includes) -> Result<Self, ObsidianError> {
+        does_not_support!(BaseSetBooks, includes);
+        does_not_support!(LentBooks, includes);
+        let stmt = try!(conn.prepare_cached(QUERY_BOOK));
+        let rows = try!(stmt.query(&[&(id as i32), &(school_id as i32)]));
+        let row = try!(rows.iter().next().ok_or(ObsidianError::RecordNotFound("Book")));
+        let book = try!(Book::from_db(conn, includes, row));
+        if book.id == Some(id) {
+            Ok(book)
         } else {
-            conn.prepare_cached(QUERY_BOOK).log("Preparing SELECT books query (Book::find_id)")
-                .and_then(|stmt| stmt.query(&[&(id as i32), &(school_id as i32)])
-                    .log("Executing SELECT books query (Book::find_id)")
-                    .and_then(|rows| rows
-                        .iter()
-                        .next()
-                        .map(|row| Book::from_db(conn, includes, row))
-                        .log("No books found (Book::find_id)")))
-                .and_then(|book| (if book.id == Some(id) {Some(book)} else {None})
-                    .log("Book has wrong id (Book::find_id)"))
+            Err(ObsidianError::RecordNotFound("Book"))
         }
     }
 
-    fn find_all(school_id: usize, conn: &Connection, includes: &Includes) -> Vec<Self> {
-        if includes.contains(&Includable::BaseSetBooks) || includes.contains(&Includable::LentBooks) {
-            None::<Book>.log(&format!("Include params {:?} not supported", includes));
-            vec![]
-        } else {
-            conn.prepare_cached(QUERY_BOOKS).log("Preparing SELECT books query (Book::find_all)")
-                .and_then(|stmt| stmt.query(&[&(school_id as i32)])
-                    .log("Executing SELECT books query (Book::find_all)")
-                    .map(|rows| rows
-                        .iter()
-                        .map(|row| Book::from_db(conn, includes, row))
-                        .collect::<Vec<Book>>()))
-                .unwrap_or(vec![])
-        }
+    fn find_all(school_id: usize, conn: &Connection, includes: &Includes) -> Result<Vec<Self>, ObsidianError> {
+        does_not_support!(BaseSetBooks, includes);
+        does_not_support!(LentBooks, includes);
+        let stmt = try!(conn.prepare_cached(QUERY_BOOKS));
+        let rows = try!(stmt.query(&[&(school_id as i32)]));
+        rows
+            .iter()
+            .map(|row| Book::from_db(conn, includes, row))
+            .collect::<Result<Vec<Book>, ObsidianError>>()
     }
 
-    fn save(mut self, id: Option<usize>, school_id: usize, conn: &Connection) -> Option<Self> {
+    fn save(mut self, id: Option<usize>, school_id: usize, conn: &Connection) -> Result<Self, ObsidianError> {
         if let Some(id) = id {
-            conn.prepare_cached(UPDATE_BOOK).log("Preparing UPDATE books query (Book::save)")
-                .and_then(|stmt| stmt.execute(&[&(id as i32), &self.isbn, &self.title, &self.form, &(school_id as i32)])
-                    .log("Executing UPDATE books query (Book::save)"))
-                .and_then(|modified| (if modified == 1 {self.id = Some(id);Some(self)} else {None})
-                    .log("Row does not exist"))
+            let stmt = try!(conn.prepare_cached(UPDATE_BOOK));
+            let modified = try!(stmt.execute(&[&(id as i32), &self.isbn, &self.title,
+                &self.form, &(school_id as i32)]));
+            if modified == 1 {
+                self.id = Some(id);
+                Ok(self)
+            } else {
+                Err(ObsidianError::RecordNotFound("Book"))
+            }
         } else {
-            conn.prepare_cached(INSERT_BOOK).log("Preparing INSERT books query (Book::save)")
-                .and_then(|stmt| stmt.query(&[&self.isbn, &self.title, &self.form, &(school_id as i32)])
-                    .log("Executing INSERT books query (Books::save)")
-                    .and_then(|rows| rows
-                        .iter()
-                        .next()
-                        .map(|row| {
-                            self.id = Some(row.get::<usize, i32>(0) as usize);
-                            self
-                        })
-                        .log("Finding inserted id")))
+            let stmt = try!(conn.prepare_cached(INSERT_BOOK));
+            let rows = try!(stmt.query(&[&self.isbn, &self.title, &self.form,
+                &(school_id as i32)]));
+            let row = rows.iter().next().unwrap();
+            self.id = Some(row.get::<usize, i32>(0) as usize);
+            Ok(self)
         }
     }
 
-    fn delete(id: usize, school_id: usize, conn: &Connection) -> Option<()> {
-        conn.prepare_cached(DELETE_BOOK).log("Preparing DELETE books query (Book::delete)")
-            .and_then(|stmt| stmt.execute(&[&(id as i32), &(school_id as i32)])
-                .log("Executing DELETE books query (Book::delete)"))
-            .and_then(|modified| (if modified == 1 {Some(())} else {None})
-                .log("Row does not exist"))
+    fn delete(id: usize, school_id: usize, conn: &Connection) -> Result<(), ObsidianError> {
+        let stmt = try!(conn.prepare_cached(DELETE_BOOK));
+        let modified = try!(stmt.execute(&[&(id as i32), &(school_id as i32)]));
+        if modified == 1 {
+            Ok(())
+        } else {
+            Err(ObsidianError::RecordNotFound("Book"))
+        }
     }
 }
 

@@ -1,3 +1,14 @@
+macro_rules! respond_with {
+    ($st:ident) => (
+        ::std::result::Result::Ok(::iron::response::Response::with(::iron::status::Status::$st))
+    );
+    ($st:ident, $body:expr) => ({
+        let ser = try!($crate::handlers::serialise($body));
+        ::std::result::Result::Ok(::iron::response::Response::with((::iron::status::Status::$st, ser,
+            ::iron::modifiers::Header(::iron::headers::ContentType::json()))))
+    });
+}
+
 pub mod students;
 pub mod books;
 pub mod aliases;
@@ -7,94 +18,52 @@ pub mod lendings;
 pub mod schools;
 pub mod sessions;
 
-use chrono::UTC;
 use iron::{Chain, Handler, Request};
 use iron::headers::ContentType;
 use iron::mime::{TopLevel, SubLevel, Mime};
 use postgres::Connection;
 use router::Router;
 use std::str::FromStr;
-use std::fmt::Debug;
 use std::collections::HashSet;
+use rustc_serialize::{Decodable, Encodable, json};
 
-use models::{Model, Includable, Includes};
+use error::{ObsidianError, ReqError};
+use models::{Includable, Includes};
 use middleware::{PostgresConnection, RequestBody, SchoolID};
 
-pub trait Optionable<T>: Sized {
-    fn log_to_option(self, ctxt: Option<&str>) -> Option<T>;
-    fn to_option(self) -> Option<T> {
-        self.log_to_option(None)
-    }
-    fn log(self, ctxt: &str) -> Option<T> {
-        self.log_to_option(Some(ctxt))
-    }
-}
-
-impl<T,E> Optionable<T> for Result<T, E> where E: Debug {
-    fn log_to_option(self, ctxt: Option<&str>) -> Option<T> {
-        match self {
-            Ok(x) => {
-                Some(x)
-            },
-            Err(e) => {
-                if let Some(ctxt) = ctxt {
-                    println!("[{}] {}: {:?}", UTC::now().format("%FT%T%:z"), ctxt, e);
-                } else {
-                    println!("[{}] Error: {:?}", UTC::now().format("%FT%T%:z"), e);
-                }
-                None
-            }
-        }
-    }
-}
-
-impl<T> Optionable<T> for Option<T> {
-    fn log_to_option(self, ctxt: Option<&str>) -> Option<T> {
-        match self {
-            None => {
-                if let Some(ctxt) = ctxt {
-                    println!("[{}] {}", UTC::now().format("%FT%T%:z"), ctxt);
-                }
-                None
-            },
-            Some(x) => {
-                Some(x)
-            }
-        }
-    }
-}
-
-fn check_content_type(req: &Request) -> Option<()> {
-    req.headers.get::<ContentType>().log("Content-Type header could not be found (check_content_type)")
+fn check_content_type(req: &Request) -> Result<(), ObsidianError> {
+    try!(req.headers.get::<ContentType>()
         .and_then(|ctype| match **ctype {
             Mime(TopLevel::Application, SubLevel::Json, _) => Some(()),
             _ => None
-        }.log("Content-Type is not 'application/json' (check_content_type)"))
+        }).ok_or(ReqError::WrongContentType));
+    Ok(())
 }
 
-fn extract_id(req: &Request) -> Option<usize> {
-    req.extensions.get::<Router>().log("Router extension could not be found (extract_id)")
-        .and_then(|params| params.find("id").log("'id' param could not be found (extract_id)"))
-        .and_then(|id| usize::from_str(&id).log("Conversion of 'id' param to usize (extract_id)"))
+fn get_id(req: &Request) -> Result<usize, ObsidianError> {
+    let router_params = req.extensions.get::<Router>().unwrap();
+    let id = router_params.find("id").unwrap();
+    usize::from_str(&id).map_err(|_| ObsidianError::from(ReqError::NoID))
 }
 
-fn get_body<'a>(req: &'a Request) -> Option<&'a str> {
-    req.extensions.get::<RequestBody>().log("RequestBody could not be found (get_body)")
-        .map(|body| body.as_ref())
+fn get_body<'a>(req: &'a Request) -> &'a str {
+    req.extensions.get::<RequestBody>().unwrap().as_ref()
 }
 
-fn parse<T: Model>(req: &Request) -> Option<T> {
-    get_body(req).and_then(|body| T::parse_str(&body))
+fn parse<T: Decodable>(req: &Request) -> Result<T, ObsidianError> {
+    json::decode::<T>(get_body(req)).map_err(ObsidianError::from)
 }
 
-fn get_db<'a>(req: &'a Request) -> Option<&'a Connection> {
-    req.extensions.get::<PostgresConnection>().log("PostgresConnection could not be found (get_db)")
-        .map(|conn| &**conn)
+fn serialise<T: Encodable>(t: T) -> Result<String, ObsidianError> {
+    json::encode(&t).map_err(ObsidianError::from)
+}
+
+fn get_db<'a>(req: &'a Request) -> &'a Connection {
+    &**req.extensions.get::<PostgresConnection>().unwrap()
 }
 
 fn get_includes(req: &Request) -> Includes {
     req.url.query()
-        .log("No query string provided (get_includes)")
         .and_then(|query| query
             .split('&')
             .filter_map(|item|
@@ -103,14 +72,12 @@ fn get_includes(req: &Request) -> Includes {
                 } else {
                     None
                 })
-            .next()
-            .log("No include parameters (get_includes)"))
-            .unwrap_or(HashSet::new())
+            .next())
+        .unwrap_or(HashSet::new())
 }
 
-fn get_school_id(req: &Request) -> Option<usize> {
-    req.extensions.get::<SchoolID>().log("School id not found (get_school_id)")
-        .map(|id| *id)
+fn get_school_id(req: &Request) -> usize {
+    *req.extensions.get::<SchoolID>().unwrap()
 }
 
 pub fn auth<H: Handler>(h: H) -> Chain {

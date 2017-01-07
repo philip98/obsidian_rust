@@ -2,12 +2,10 @@ use postgres::Connection;
 use postgres::rows::Row;
 use std::collections::HashSet;
 
+use error::ObsidianError;
 use models::{Model, Includes};
 use models::books::Book;
-use handlers::Optionable;
 
-const QUERY_ALIAS: &'static str = "SELECT aliases.id, book_id, name FROM aliases, books WHERE aliases.id=$1
-    AND book_id = books.id AND school_id = $2";
 const QUERY_ALIASES: &'static str = "SELECT aliases.id, book_id, name FROM aliases, books WHERE book_id = books.id
     AND school_id = $1";
 
@@ -43,67 +41,50 @@ impl Alias {
 }
 
 impl Model for Alias {
-    fn find_id(id: usize, school_id: usize, conn: &Connection, includes: &Includes) -> Option<Self> {
-        if !includes.is_empty() {
-            None.log(&format!("Include params {:?} not supported", includes))
-        } else {
-            conn.prepare_cached(QUERY_ALIAS).log("Preparing SELECT aliases query (Alias::find_id)")
-                .and_then(|stmt| stmt.query(&[&(id as i32), &(school_id as i32)])
-                    .log("Executing SELECT aliases query (Alias::find_id)")
-                    .and_then(|rows| rows
-                        .iter()
-                        .next()
-                        .map(|row| Alias::from_db(conn, includes, row))
-                        .log("Row not found (Alias::find_id)")))
-                .and_then(|alias| if alias.id == Some(id) {Some(alias)} else {None}
-                    .log("IDs don't match (Alias::find_id)"))
-        }
+    fn find_id(_: usize, _: usize, _: &Connection, _: &Includes) -> Result<Self, ObsidianError> {
+        unreachable!()
     }
 
-    fn find_all(school_id: usize, conn: &Connection, includes: &Includes) -> Vec<Self> {
-        if !includes.is_empty() {
-            None::<Alias>.log(&format!("Include params {:?} not supported", includes));
-            vec![]
-        } else {
-            conn.prepare_cached(QUERY_ALIASES).log("Preparing SELECT aliases query (Alias::find_all)")
-                .and_then(|stmt| stmt.query(&[&(school_id as i32)])
-                    .log("Executing SELECT aliases query (Alias::find_all)")
-                    .map(|rows| rows
-                        .iter()
-                        .map(|row| Alias::from_db(conn, includes, row))
-                        .collect::<Vec<Alias>>()))
-                .unwrap_or(vec![])
-        }
+    fn find_all(school_id: usize, conn: &Connection, includes: &Includes) -> Result<Vec<Self>, ObsidianError> {
+        does_not_support!(LentBooks, includes);
+        does_not_support!(BaseSetBooks, includes);
+        does_not_support!(Aliases, includes);
+        let stmt = try!(conn.prepare_cached(QUERY_ALIASES));
+        let rows = try!(stmt.query(&[&(school_id as i32)]))
+            .iter()
+            .map(|row| Alias::from_db(conn, includes, row))
+            .collect::<Vec<Self>>();
+        Ok(rows)
     }
 
-    fn save(mut self, id: Option<usize>, school_id: usize, conn: &Connection) -> Option<Self> {
+    fn save(mut self, id: Option<usize>, school_id: usize, conn: &Connection) -> Result<Self, ObsidianError> {
         if let Some(id) = id {
-            conn.prepare_cached(UPDATE_ALIAS)
-                .log("Preparing UPDATE aliases query (Alias::save)")
-                .and_then(|stmt| stmt.execute(&[&(id as i32), &(self.book_id as i32), &self.name, &(school_id as i32)])
-                    .log("Executing UPDATE aliases query (Alias::save)"))
-                .and_then(|modified| if modified == 1 {self.id = Some(id); Some(self)} else {None}
-                    .log("Row not found (Alias::save)"))
+            let stmt = try!(conn.prepare_cached(UPDATE_ALIAS));
+            let modified = try!(stmt.execute(&[&(id as i32), &(self.book_id as i32),
+                &self.name, &(school_id as i32)]));
+            if modified == 1 {
+                self.id = Some(id);
+                Ok(self)
+            } else {
+                Err(ObsidianError::RecordNotFound("Alias"))
+            }
         } else {
-            Book::find_id(self.book_id, school_id, conn, &HashSet::new())
-                .and_then(|_| conn.prepare_cached(INSERT_ALIAS)
-                    .log("Preparing INSERT aliases query (Alias::save)"))
-                .and_then(|stmt| stmt.query(&[&(self.book_id as i32), &self.name])
-                    .log("Executing INSERT aliases query (Alias::save)")
-                    .and_then(|rows| rows
-                        .iter()
-                        .next()
-                        .map(|row| {self.id = Some(row.get::<usize, i32>(0) as usize); self})
-                        .log("Inserted id not found (Alias::save)")))
+            try!(Book::find_id(self.book_id, school_id, conn, &HashSet::new()));
+            let stmt = try!(conn.prepare_cached(INSERT_ALIAS));
+            let rows = try!(stmt.query(&[&(self.book_id as i32), &self.name]));
+            let row = rows.iter().next().unwrap();
+            self.id = Some(row.get::<usize, i32>(0) as usize);
+            Ok(self)
         }
     }
 
-    fn delete(id: usize, school_id: usize, conn: &Connection) -> Option<()> {
-        conn.prepare_cached(DELETE_ALIAS)
-            .log("Preparing DELETE aliases query (Alias::delete)")
-            .and_then(|stmt| stmt.execute(&[&(id as i32), &(school_id as i32)])
-                .log("Executing DELETE aliases query (Alias::delete)"))
-            .and_then(|modified| if modified == 1 {Some(())} else {None}
-                .log("Row not found (Alias::delete)"))
+    fn delete(id: usize, school_id: usize, conn: &Connection) -> Result<(), ObsidianError> {
+        let stmt = try!(conn.prepare_cached(DELETE_ALIAS));
+        let modified = try!(stmt.execute(&[&(id as i32), &(school_id as i32)]));
+        if modified == 1 {
+            Ok(())
+        } else {
+            Err(ObsidianError::RecordNotFound("Alias"))
+        }
     }
 }

@@ -1,3 +1,13 @@
+macro_rules! does_not_support {
+    ($includable:ident, $includes:expr) => (try!(
+        if $includes.contains(&$crate::models::Includable::$includable) {
+            ::std::result::Result::Err($crate::error::ObsidianError::IncludeNotSupported($crate::models::Includable::$includable))
+        } else {
+            Ok(())
+        }
+    ));
+}
+
 pub mod students;
 pub mod books;
 pub mod aliases;
@@ -11,9 +21,9 @@ use postgres::Connection;
 use rustc_serialize::{json, Encodable, Decodable};
 use std::collections::HashSet;
 
-use handlers::Optionable;
+use error::ObsidianError;
 
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum Includable {
     LentBooks,
     BaseSetBooks,
@@ -35,16 +45,16 @@ impl Includable {
 }
 
 pub trait Model: Encodable + Decodable {
-    fn find_id(id: usize, school_id: usize, conn: &Connection, includes: &Includes) -> Option<Self>;
-    fn find_all(school_id: usize, conn: &Connection,includes: &Includes) -> Vec<Self>;
-    fn save(self, id: Option<usize>, school_id: usize, conn: &Connection) -> Option<Self>;
-    fn delete(id: usize, school_id: usize, conn: &Connection) -> Option<()>;
+    fn find_id(id: usize, school_id: usize, conn: &Connection, includes: &Includes) -> Result<Self, ObsidianError>;
+    fn find_all(school_id: usize, conn: &Connection,includes: &Includes) -> Result<Vec<Self>, ObsidianError>;
+    fn save(self, id: Option<usize>, school_id: usize, conn: &Connection) -> Result<Self, ObsidianError>;
+    fn delete(id: usize, school_id: usize, conn: &Connection) -> Result<(), ObsidianError>;
 
-    fn parse_str(body: &str) -> Option<Self> {
-        json::decode::<Self>(body).log("Deserialising (Model::parse_str)")
+    fn parse_str(body: &str) -> Result<Self, ObsidianError> {
+        json::decode::<Self>(body).map_err(ObsidianError::from)
     }
 
-    fn to_str(&self) -> Option<String> {
-        json::encode(self).log("Serialising (Model::to_str)")
+    fn to_str(&self) -> Result<String, ObsidianError> {
+        json::encode(self).map_err(ObsidianError::from)
     }
 }

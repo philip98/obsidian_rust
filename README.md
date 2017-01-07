@@ -332,7 +332,7 @@ the following fields:
 {
     isbn: String,
     title: String,
-    forms: String
+    form: String
 }
 ```
 the rest will be `None`'d automatically.
@@ -667,16 +667,17 @@ Content-Type: application/json
     {
         "id":1,
         "name":"Charles Darwin",
-        "lent_books":[[
-            "2017-01-02T13:04:59.241354+00:00",
-            {
+        "lent_books":[{
+            "id":1,
+            "created_at":"2017-01-02T13:04:59.241354+00:00",
+            "book":{
                 "id":2,
                 "isbn":"9781234567894",
                 "title":"On The Origin Of Species",
                 "form":"13",
                 "aliases":null
             }
-        ]]
+        }]
     },
     {
         "id":2,
@@ -724,26 +725,28 @@ Content-Type: application/json
     "id":1,
     "name":"Charles Darwin",
     "lent_books":[
-        [
-            "2017-01-02T13:04:59.241354+00:00",
-            {
+        {
+            "id":1,
+            "created_at":"2017-01-02T13:04:59.241354+00:00",
+            "book":{
                 "id":2,
                 "isbn":"9781234567894",
                 "title":"On The Origin Of Species",
                 "form":"13",
                 "aliases":null
             }
-        ],
-        [
-            "2017-01-02T13:14:23.142351+00:00",
-            {
+        },
+        {
+            "id":2,
+            "created_at":"2017-01-02T13:14:23.142351+00:00",
+            "book":{
                 "id":4,
                 "isbn":"9781278945432",
                 "title":"Quantisierung als Eigenwertproblem",
                 "form":"14",
                 "aliases":null
             }
-        ]
+        }
     ]
 }
 ```
