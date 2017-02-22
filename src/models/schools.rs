@@ -11,7 +11,7 @@ const UPDATE_NAME: &'static str = "UPDATE schools SET name=$2 WHERE id=$1";
 const UPDATE_PASSWORD: &'static str = "UPDATE schools SET encrypted_password=$2 WHERE id=$1";
 const DELETE_SCHOOL: &'static str = "DELETE FROM schools WHERE id=$1";
 
-#[derive(RustcDecodable)]
+#[derive(RustcDecodable, Debug)]
 pub struct AuthData {
     name: String,
     password: String
@@ -38,7 +38,7 @@ impl AuthData {
     }
 }
 
-#[derive(RustcDecodable)]
+#[derive(RustcDecodable, Debug)]
 pub struct PasswordChange {
     old_password: String,
     new_password: String
@@ -65,7 +65,7 @@ impl PasswordChange {
     }
 }
 
-#[derive(RustcDecodable)]
+#[derive(RustcDecodable, Debug)]
 pub struct NameChange {
     name: String
 }
@@ -82,7 +82,7 @@ impl NameChange {
     }
 }
 
-#[derive(RustcDecodable)]
+#[derive(RustcDecodable, Debug)]
 pub struct Deletion {
     password: String
 }

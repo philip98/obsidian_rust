@@ -16,7 +16,7 @@ const INSERT_BOOK: &'static str = "INSERT INTO books (isbn, title, form, school_
 const UPDATE_BOOK: &'static str = "UPDATE books SET isbn=$2, title=$3, form=$4 WHERE id=$1 AND school_id=$5";
 const DELETE_BOOK: &'static str = "DELETE FROM books WHERE id=$1 AND school_id=$2";
 
-#[derive(RustcEncodable)]
+#[derive(RustcEncodable, Debug)]
 pub struct Book {
     id: Option<usize>,
     isbn: String,

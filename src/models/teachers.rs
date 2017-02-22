@@ -7,7 +7,7 @@ use error::ObsidianError;
 use models::{Model, Includes, Includable};
 use models::books::Book;
 
-#[derive(RustcEncodable)]
+#[derive(RustcEncodable, Debug)]
 struct LentBook{
     id: usize,
     created_at: String,
@@ -23,7 +23,7 @@ const INSERT_TEACHER: &'static str = "INSERT INTO teachers (name, school_id) VAL
 const UPDATE_TEACHER: &'static str = "UPDATE teachers SET name=$2 WHERE id=$1 AND school_id=$3";
 const DELETE_TEACHER: &'static str = "DELETE FROM teachers WHERE id=$1 AND school_id=$2";
 
-#[derive(RustcEncodable)]
+#[derive(RustcEncodable, Debug)]
 pub struct Teacher {
     id: Option<usize>,
     name: String,

@@ -15,7 +15,7 @@ EXISTS (SELECT * FROM books WHERE books.id = aliases.book_id AND books.school_id
 const DELETE_ALIAS: &'static str = "DELETE FROM aliases WHERE aliases.id=$1 AND EXISTS
 (SELECT * FROM books WHERE books.id = aliases.book_id AND books.school_id = $2)";
 
-#[derive(RustcEncodable, RustcDecodable)]
+#[derive(RustcEncodable, RustcDecodable, Debug)]
 pub struct Alias {
     id: Option<usize>,
     book_id: usize,

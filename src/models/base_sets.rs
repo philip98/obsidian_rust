@@ -12,6 +12,7 @@ const INSERT_BASE_SET: &'static str = "INSERT INTO base_sets (student_id, book_i
 const DELETE_BASE_SET: &'static str = "DELETE FROM base_sets WHERE base_sets.id=$1 AND EXISTS
 (SELECT * FROM books WHERE books.id = base_sets.book_id AND book.school_id = $2)";
 
+#[derive(Debug)]
 pub struct BaseSet {
     id: Option<usize>,
     student_id: usize,

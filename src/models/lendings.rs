@@ -16,11 +16,13 @@ VALUES ('teacher', $1, $2, $3) RETURNING id";
 const DELETE_LENDING: &'static str = "DELETE FROM lendings WHERE lendings.id=$1 AND EXISTS
 (SELECT * FROM books WHERE book.id = lendings.book_id AND book.school_id=$2)";
 
+#[derive(Debug)]
 enum Person {
     Student(usize),
     Teacher(usize)
 }
 
+#[derive(Debug)]
 pub struct Lending {
     id: Option<usize>,
     created_at: DateTime<UTC>,

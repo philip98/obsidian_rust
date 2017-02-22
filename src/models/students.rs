@@ -7,7 +7,7 @@ use error::ObsidianError;
 use models::{Includable, Includes, Model};
 use models::books::Book;
 
-#[derive(RustcEncodable)]
+#[derive(RustcEncodable, Debug)]
 struct LentBook {
     id: usize,
     created_at: String,
@@ -29,7 +29,7 @@ const UPDATE_STUDENT: &'static str = "UPDATE students SET name=$2, graduation_ye
     class_letter=$4 WHERE id=$1 AND school_id=$5";
 const DELETE_STUDENT: &'static str = "DELETE FROM students WHERE id=$1 AND school_id=$2";
 
-#[derive(RustcEncodable)]
+#[derive(RustcEncodable, Debug)]
 pub struct Student {
     id: Option<usize>,
     name: String,
@@ -147,55 +147,23 @@ impl Model for Student {
 
 impl Decodable for Student {
     fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
-        d.read_struct("Student", 3, |d| {
+        d.read_struct("Student", 0, |d| {
+            let id = try!(d.read_struct_field("id", 0, |d|
+                Option::<usize>::decode(d)));
             let name = try!(d.read_struct_field("name", 0, |d|
                 d.read_str()));
-            let class_letter = try!(d.read_struct_field("class_letter", 1, |d|
+            let class_letter = try!(d.read_struct_field("class_letter", 0, |d|
                 d.read_str()));
-            let graduation_year = try!(d.read_struct_field("graduation_year", 2, |d|
+            let graduation_year = try!(d.read_struct_field("graduation_year", 0, |d|
                 d.read_i32()));
             Ok(Student {
-                id: None,
+                id: id,
                 name: name,
                 class_letter: class_letter,
                 graduation_year: graduation_year,
                 lent_books: None,
                 base_sets: None
             })
-        }).or_else(|_|
-            d.read_struct("Student", 4, |d| {
-                let id = try!(d.read_struct_field("id", 0, |d| Option::<usize>::decode(d)));
-                let name = try!(d.read_struct_field("name", 1, |d|
-                    d.read_str()));
-                let class_letter = try!(d.read_struct_field("class_letter", 2, |d|
-                    d.read_str()));
-                let graduation_year = try!(d.read_struct_field("graduation_year", 3, |d|
-                    d.read_i32()));
-                Ok(Student {
-                    id: id,
-                    name: name,
-                    class_letter: class_letter,
-                    graduation_year: graduation_year,
-                    lent_books: None,
-                    base_sets: None
-                })
-            }))
+        })
     }
-}
-
-#[test]
-fn serialisation_works() {
-    let s = Student{id: None, name: "Philip Schlösser".to_string(), class_letter: String::new(),
-        graduation_year: 2016};
-    println!("{}", json::encode(&s).unwrap());
-    let v = vec![s, Student{id: Some(5), name: "aoidhfaio".to_string(), class_letter: "abc".to_string(),
-        graduation_year: 2017}];
-    println!("{}", json::encode(&v).unwrap());
-}
-
-#[test]
-fn reading_works() {
-    Student::from_str("{\"name\": \"דויד לבי\",\"class_letter\": \"c\",\"graduation_year\":2015}").unwrap();
-    assert_eq!(Student::many_from_str("[{\"name\": \"PS\", \"class_letter\": \"a\", \"graduation_year\":2011},
-    {\"name\": \"JV\", \"class_letter\": \"\", \"graduation_year\": 2017}]").len(), 2);
 }
