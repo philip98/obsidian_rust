@@ -1000,3 +1000,145 @@ Response:
 ```
 HTTP/1.1 204 No Content
 ```
+
+## Schools
+### Create
+Request:
+```
+POST /schools HTTP/1.1
+Content-Type: application/json
+```
+```json
+{
+    "name":"Michaeli-Gymnasium",
+    "password":"test1234"
+}
+```
+
+Response:
+```
+HTTP/1.1 201 Created
+Content-Type: application/json
+```
+```json
+{
+    "token_id":893958374535,
+    "secret":"4yvOsSrYk6Bps1RBzIEAt4CE"
+}
+```
+
+### Edit
+#### Changing password
+Request:
+```
+PUT /schools HTTP/1.1
+Content-Type: application/json
+```
+```json
+{
+    "old_password":"test1234",
+    "new_password":"password123"
+}
+```
+
+Response:
+```
+HTTP/1.1 204 No Content
+```
+
+#### Changing the school's name
+Request:
+```
+PUT /schools HTTP/1.1
+Content-Type: application/json
+```
+```json
+{
+    "name":"MGM"
+}
+```
+
+Response:
+```
+HTTP/1.1 204 No Content
+```
+
+### Delete
+Request:
+```
+DELETE /schools HTTP/1.1
+Content-Type: application/json
+```
+```json
+{
+    "password":"password123"
+}
+```
+
+Response:
+```
+HTTP/1.1 204 No Content
+```
+
+## Sessions
+### Create
+Request:
+```
+POST /sessions HTTP/1.1
+Content-Type: application/json
+```
+```json
+{
+    "name":"MGM",
+    "password":"password123"
+}
+```
+
+Response:
+```
+HTTP/1.1 201 Created
+Content-Type: application
+```
+```json
+{
+    "token_id":2991965075,
+    "secret":"4yvOsSrYk6Bps1RBzIEAt4CE"
+}
+```
+
+### Delete
+Request:
+```
+DELETE /sessions HTTP/1.1
+```
+
+Response:
+```
+HTTP/1.1 204 No Content
+```
+
+# Authentication
+All routes except the following expect [Basic authentication](https://en.wikipedia.org/wiki/Basic_access_authentication):
+- `/schools/new`
+- `/sessions/new`
+
+All other routes need to provide a name/password pair (or, as it should be called, a token/secret pair) that
+is returned by `/schools/new` and `/sessions/new`. A correct request to one of those
+routes yields a response that contains a `token_id` and a `secret`. In order to use
+the other routes, please specify the `token_id` as username and the `secret` as password.
+As is customary for Basic authentication, the username/password block is then base64-encoded
+and appended to the string "`Basic `" and used as `Authorization` headers.
+
+If no `Authorization` header is specified (but one is required), or the token is invalid or
+malformed, the server will respond with
+
+```
+HTTP/1.1 403 Unauthorized
+WWW-Authenticate: Basic: realm="Token and secret"
+```
+
+Once authorized, the user is perfectly ignorant of other users that might exist. They
+have absolutely no access to any records belonging to other schools. The user is
+also ignorant of their own school id because such knowledge is simply not necessary:
+when logged in, there is only one school whose name or password one could possibly
+change, and logging in happens via school name and password, so no school id required, either.
